@@ -1,8 +1,9 @@
 // crawl-lolicon.mjs
 // 从 Lolicon API 爬取 R18 图片，上传到 R2
 // 每次运行 5 分钟，每隔 15-20 秒随机下载一张
+// 启动时自动清理 JSON 中 R2 里不存在的假链接
 import crypto from 'crypto';
-import { writeFileSync } from 'fs';
+import { writeFileSync, readFileSync, existsSync } from 'fs';
 
 const accountId = process.env.R2_ACCOUNT_ID;
 const accessKeyId = process.env.R2_ACCESS_KEY_ID;
@@ -11,6 +12,7 @@ const bucketName = process.env.R2_IMAGES_BUCKET || 'homepage-bg';
 const cdnBase = 'https://img-homepage.openserve.cloud';
 const emptyPayloadHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const host = bucketName + '.' + accountId + '.r2.cloudflarestorage.com';
+const IMAGES_JSON = 'images-info.json';
 
 const RUN_DURATION = 5 * 60 * 1000;
 const MIN_DELAY = 15000;
@@ -85,7 +87,6 @@ async function uploadToR2(key, body, contentType) {
   return resp.ok;
 }
 
-// Lolicon API - r18=1 获取 R18 图片
 async function fetchRandomImage() {
   const resp = await fetch('https://api.lolicon.app/setu/v2?num=1&size=original&r18=1');
   if (!resp.ok) return null;
@@ -96,10 +97,7 @@ async function fetchRandomImage() {
 
 async function downloadImage(url) {
   const resp = await fetch(url, {
-    headers: {
-      'Referer': 'https://www.pixiv.net/',
-      'User-Agent': 'Mozilla/5.0',
-    },
+    headers: { 'Referer': 'https://www.pixiv.net/', 'User-Agent': 'Mozilla/5.0' },
   });
   if (!resp.ok) return null;
   return Buffer.from(await resp.arrayBuffer());
@@ -109,6 +107,31 @@ function randomDelay() {
   return MIN_DELAY + Math.random() * (MAX_DELAY - MIN_DELAY);
 }
 
+// 清理 images-info.json 中 R2 里不存在的条目
+function cleanImagesJson(existingKeys) {
+  if (!existsSync(IMAGES_JSON)) {
+    console.log(IMAGES_JSON + ' 不存在，跳过清理');
+    return;
+  }
+
+  const images = JSON.parse(readFileSync(IMAGES_JSON, 'utf8'));
+  const before = images.length;
+
+  const cleaned = images.filter(img => {
+    const key = img.filename || (img.pid + '.' + (img.ext || 'jpg'));
+    return existingKeys.has(key);
+  });
+
+  const removed = before - cleaned.length;
+  if (removed > 0) {
+    writeFileSync(IMAGES_JSON, JSON.stringify(cleaned, null, 2));
+    console.log('清理了 ' + removed + ' 条假链接（R2 中不存在）');
+    console.log('剩余 ' + cleaned.length + ' 条有效记录');
+  } else {
+    console.log('JSON 文件无需清理');
+  }
+}
+
 async function main() {
   console.log('=== Lolicon R18 爬虫启动 ===');
   console.log('运行时长: 5 分钟');
@@ -116,10 +139,17 @@ async function main() {
   console.log('目标桶: ' + bucketName);
   console.log('');
 
+  // 获取 R2 已有文件
   console.log('获取 R2 已有文件...');
   const existingKeys = new Set(await listAllKeys());
   console.log('已有 ' + existingKeys.size + ' 个文件');
 
+  // 清理 JSON 中的假链接
+  console.log('\n清理 images-info.json 中的假链接...');
+  cleanImagesJson(existingKeys);
+
+  // 开始爬取
+  console.log('\n开始爬取新图片...');
   const startTime = Date.now();
   let downloaded = 0;
   let skipped = 0;
@@ -197,16 +227,21 @@ async function main() {
     await new Promise(r => setTimeout(r, delay));
   }
 
+  // 更新 images-info.json：把新图片追加进去
+  if (newImages.length > 0) {
+    let existing = [];
+    if (existsSync(IMAGES_JSON)) {
+      existing = JSON.parse(readFileSync(IMAGES_JSON, 'utf8'));
+    }
+    existing.push(...newImages);
+    writeFileSync(IMAGES_JSON, JSON.stringify(existing, null, 2));
+    console.log('\n已将 ' + newImages.length + ' 条新记录追加到 ' + IMAGES_JSON);
+  }
+
   console.log('\n========== 爬取完成 ==========');
   console.log('成功下载: ' + downloaded + ' 张');
   console.log('跳过(已存在): ' + skipped + ' 张');
   console.log('失败: ' + failed + ' 张');
-  console.log('新增图片信息: ' + newImages.length + ' 条');
-
-  if (newImages.length > 0) {
-    writeFileSync('new-images.json', JSON.stringify(newImages, null, 2));
-    console.log('新增图片信息已保存到 new-images.json');
-  }
 }
 
 main();
