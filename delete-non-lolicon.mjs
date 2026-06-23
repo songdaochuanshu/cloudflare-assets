@@ -1,6 +1,7 @@
 // delete-non-lolicon.mjs
-// 从 R2 删除非 Lolicon 图片
+// 根据 images-info-export.json 中的 PID 列表，从 R2 删除对应图片
 import crypto from 'crypto';
+import { readFileSync } from 'fs';
 
 const accountId = process.env.R2_ACCOUNT_ID;
 const accessKeyId = process.env.R2_ACCESS_KEY_ID;
@@ -8,7 +9,6 @@ const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
 const bucketName = process.env.R2_IMAGES_BUCKET || 'homepage-bg';
 const emptyPayloadHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const host = bucketName + '.' + accountId + '.r2.cloudflarestorage.com';
-const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
 
 function getSignatureKey(key, dateStamp) {
   const kDate = crypto.createHmac('sha256', 'AWS4' + key).update(dateStamp).digest();
@@ -39,20 +39,9 @@ function signRequest(method, uri, query, bodyHash, date) {
   };
 }
 
-function parseXmlObjects(xml) {
-  const objects = [];
-  const contents = xml.split('<Contents>');
-  for (let i = 1; i < contents.length; i++) {
-    const block = contents[i].split('</Contents>')[0];
-    const keyMatch = block.match(/<Key>([^<]+)<\/Key>/);
-    const sizeMatch = block.match(/<Size>(\d+)<\/Size>/);
-    if (keyMatch) objects.push({ key: keyMatch[1], size: parseInt(sizeMatch?.[1] || '0') });
-  }
-  return objects;
-}
-
-async function listAllObjects() {
-  const objects = [];
+// 列出 R2 中所有文件
+async function listAllKeys() {
+  const keys = [];
   let marker = '';
   while (true) {
     let query = 'max-keys=1000';
@@ -62,36 +51,22 @@ async function listAllObjects() {
     const resp = await fetch(url, {
       headers: { 'Authorization': authorization, 'x-amz-content-sha256': emptyPayloadHash, 'x-amz-date': amzDate, 'Host': host },
     });
-    if (!resp.ok) { console.error('R2 list failed:', resp.status); break; }
+    if (!resp.ok) { console.error('List failed:', resp.status); break; }
     const xml = await resp.text();
-    objects.push(...parseXmlObjects(xml));
+    const matches = xml.matchAll(/<Key>([^<]+)<\/Key>/g);
+    for (const m of matches) keys.push(m[1]);
     if (!xml.includes('<IsTruncated>true</IsTruncated>')) break;
     const nextMarkerMatch = xml.match(/<NextMarker>([^<]+)<\/NextMarker>/);
     marker = nextMarkerMatch ? nextMarkerMatch[1] : '';
-    console.log('Listed ' + objects.length + ' objects...');
   }
-  return objects;
+  return keys;
 }
 
-async function checkLolicon(pid) {
-  try {
-    const resp = await fetch('https://api.lolicon.app/setu/v2?num=1&pid=' + pid);
-    if (resp.status === 403) {
-      await new Promise(r => setTimeout(r, 2000));
-      const resp2 = await fetch('https://api.lolicon.app/setu/v2?num=1&pid=' + pid);
-      const data = await resp2.json();
-      return data.data && data.data.length > 0;
-    }
-    const data = await resp.json();
-    return data.data && data.data.length > 0;
-  } catch (e) {
-    return null;
-  }
-}
-
+// 删除 R2 中的文件
 async function deleteObject(key) {
-  const { authorization, amzDate } = signRequest('DELETE', '/' + encodeURIComponent(key).replace(/%2F/g, '/'), '', emptyPayloadHash, new Date());
-  const url = 'https://' + host + '/' + encodeURIComponent(key).replace(/%2F/g, '/');
+  const encodedKey = key.split('/').map(p => encodeURIComponent(p)).join('/');
+  const { authorization, amzDate } = signRequest('DELETE', '/' + encodedKey, '', emptyPayloadHash, new Date());
+  const url = 'https://' + host + '/' + encodedKey;
   const resp = await fetch(url, {
     method: 'DELETE',
     headers: { 'Authorization': authorization, 'x-amz-content-sha256': emptyPayloadHash, 'x-amz-date': amzDate, 'Host': host },
@@ -104,55 +79,41 @@ async function main() {
   console.log('Bucket: ' + bucketName);
   console.log('');
 
-  console.log('Step 1: 列出 R2 所有图片...');
-  const allObjects = await listAllObjects();
-  const imageFiles = allObjects.filter(obj => {
-    const ext = obj.key.toLowerCase().split('.').pop();
-    return imageExtensions.includes('.' + ext);
-  });
-  console.log('共 ' + imageFiles.length + ' 张图片');
+  // 读取要删除的图片列表
+  const deleteList = JSON.parse(readFileSync('images-info-export.json', 'utf8'));
+  const deletePids = new Set(deleteList.map(item => String(item.pid)));
+  console.log('要删除的图片 PID 数量: ' + deletePids.size);
 
-  console.log('\nStep 2: 用 Lolicon API 检查...');
-  const toDelete = [];
-  const toKeep = [];
+  // 列出 R2 中所有文件
+  console.log('\n获取 R2 文件列表...');
+  const allKeys = await listAllKeys();
+  console.log('R2 中总文件数: ' + allKeys.length);
 
-  for (let i = 0; i < imageFiles.length; i++) {
-    const obj = imageFiles[i];
-    const filename = obj.key.split('/').pop();
+  // 找出需要删除的文件
+  const toDelete = allKeys.filter(key => {
+    const filename = key.split('/').pop();
     const pid = filename.replace(/\.[^.]+$/, '');
-
-    process.stdout.write('[' + (i + 1) + '/' + imageFiles.length + '] ' + pid + '... ');
-
-    const exists = await checkLolicon(pid);
-    if (exists === true) {
-      console.log('KEEP');
-      toKeep.push(obj.key);
-    } else if (exists === false) {
-      console.log('DELETE');
-      toDelete.push(obj.key);
-    } else {
-      console.log('ERROR (keeping)');
-      toKeep.push(obj.key);
-    }
-
-    await new Promise(r => setTimeout(r, 1500));
-  }
-
-  console.log('\n========== 检查结果 ==========');
-  console.log('保留: ' + toKeep.length + ' 张');
-  console.log('删除: ' + toDelete.length + ' 张');
+    return deletePids.has(pid);
+  });
+  console.log('匹配到需要删除的文件: ' + toDelete.length + ' 个');
 
   if (toDelete.length === 0) {
-    console.log('没有需要删除的图片');
+    console.log('没有需要删除的文件');
     return;
   }
 
-  console.log('\nStep 3: 删除非 Lolicon 图片...');
+  // 显示前 10 个
+  console.log('\n前 10 个文件:');
+  toDelete.slice(0, 10).forEach(key => console.log('  ' + key));
+  if (toDelete.length > 10) console.log('  ... 还有 ' + (toDelete.length - 10) + ' 个');
+
+  // 开始删除
+  console.log('\n开始删除...');
   let deleted = 0;
   let failed = 0;
 
   for (const key of toDelete) {
-    process.stdout.write('Deleting ' + key + '... ');
+    process.stdout.write('删除 ' + key + '... ');
     const ok = await deleteObject(key);
     if (ok) {
       console.log('OK');
@@ -161,13 +122,14 @@ async function main() {
       console.log('FAILED');
       failed++;
     }
+    // 避免太快
     await new Promise(r => setTimeout(r, 100));
   }
 
   console.log('\n========== 完成 ==========');
-  console.log('成功删除: ' + deleted + ' 张');
-  console.log('删除失败: ' + failed + ' 张');
-  console.log('保留: ' + toKeep.length + ' 张');
+  console.log('成功删除: ' + deleted + ' 个');
+  console.log('删除失败: ' + failed + ' 个');
+  console.log('R2 剩余文件: ' + (allKeys.length - deleted) + ' 个');
 }
 
 main();
