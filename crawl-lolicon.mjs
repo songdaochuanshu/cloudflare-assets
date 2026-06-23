@@ -1,5 +1,5 @@
 // crawl-lolicon.mjs
-// 从 Lolicon API 爬取图片，上传到 R2，更新 JSON
+// 从 Lolicon API 爬取 R18 图片，上传到 R2
 // 每次运行 5 分钟，每隔 15-20 秒随机下载一张
 import crypto from 'crypto';
 import { writeFileSync } from 'fs';
@@ -12,12 +12,10 @@ const cdnBase = 'https://img-homepage.openserve.cloud';
 const emptyPayloadHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const host = bucketName + '.' + accountId + '.r2.cloudflarestorage.com';
 
-const RUN_DURATION = 5 * 60 * 1000; // 5 分钟
-const MIN_DELAY = 15000; // 15 秒
-const MAX_DELAY = 20000; // 20 秒
-const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+const RUN_DURATION = 5 * 60 * 1000;
+const MIN_DELAY = 15000;
+const MAX_DELAY = 20000;
 
-// ===== S3 签名 =====
 function getSignatureKey(key, dateStamp) {
   const kDate = crypto.createHmac('sha256', 'AWS4' + key).update(dateStamp).digest();
   const kRegion = crypto.createHmac('sha256', kDate).update('auto').digest();
@@ -47,7 +45,6 @@ function signRequest(method, uri, query, bodyHash, date) {
   };
 }
 
-// ===== R2 操作 =====
 async function listAllKeys() {
   const keys = [];
   let marker = '';
@@ -88,9 +85,9 @@ async function uploadToR2(key, body, contentType) {
   return resp.ok;
 }
 
-// ===== Lolicon API =====
+// Lolicon API - r18=1 获取 R18 图片
 async function fetchRandomImage() {
-  const resp = await fetch('https://api.lolicon.app/setu/v2?num=1&size=original');
+  const resp = await fetch('https://api.lolicon.app/setu/v2?num=1&size=original&r18=1');
   if (!resp.ok) return null;
   const data = await resp.json();
   if (!data.data || data.data.length === 0) return null;
@@ -112,15 +109,13 @@ function randomDelay() {
   return MIN_DELAY + Math.random() * (MAX_DELAY - MIN_DELAY);
 }
 
-// ===== 主流程 =====
 async function main() {
-  console.log('=== Lolicon 爬虫启动 ===');
+  console.log('=== Lolicon R18 爬虫启动 ===');
   console.log('运行时长: 5 分钟');
   console.log('下载间隔: 15-20 秒随机');
   console.log('目标桶: ' + bucketName);
   console.log('');
 
-  // 获取已有的 key
   console.log('获取 R2 已有文件...');
   const existingKeys = new Set(await listAllKeys());
   console.log('已有 ' + existingKeys.size + ' 个文件');
@@ -137,7 +132,6 @@ async function main() {
     console.log('[' + elapsed + 's / 300s] 剩余 ' + remaining + 's');
 
     try {
-      // 随机获取一张图片信息
       const imageInfo = await fetchRandomImage();
       if (!imageInfo) {
         console.log('  获取图片信息失败，跳过');
@@ -150,7 +144,6 @@ async function main() {
       const ext = '.' + (imageInfo.ext || 'jpg');
       const filename = pid + ext;
 
-      // 检查是否已存在
       if (existingKeys.has(filename)) {
         console.log('  ' + filename + ' 已存在，跳过');
         skipped++;
@@ -158,7 +151,6 @@ async function main() {
         continue;
       }
 
-      // 下载图片
       console.log('  下载 ' + filename + '...');
       const imgUrl = imageInfo.urls.original;
       const imgData = await downloadImage(imgUrl);
@@ -169,7 +161,6 @@ async function main() {
         continue;
       }
 
-      // 上传到 R2
       console.log('  上传到 R2...');
       const contentType = ext === '.png' ? 'image/png' : 'image/jpeg';
       const uploaded = await uploadToR2(filename, imgData, contentType);
@@ -180,7 +171,7 @@ async function main() {
         continue;
       }
 
-      console.log('  ✅ ' + filename + ' (' + Math.round(imgData.length / 1024) + 'KB)');
+      console.log('  OK ' + filename + ' (' + Math.round(imgData.length / 1024) + 'KB)');
       downloaded++;
       existingKeys.add(filename);
       newImages.push({
@@ -201,7 +192,6 @@ async function main() {
       failed++;
     }
 
-    // 随机等待
     const delay = randomDelay();
     console.log('  等待 ' + Math.round(delay / 1000) + ' 秒...');
     await new Promise(r => setTimeout(r, delay));
@@ -213,7 +203,6 @@ async function main() {
   console.log('失败: ' + failed + ' 张');
   console.log('新增图片信息: ' + newImages.length + ' 条');
 
-  // 保存新增图片信息到本地
   if (newImages.length > 0) {
     writeFileSync('new-images.json', JSON.stringify(newImages, null, 2));
     console.log('新增图片信息已保存到 new-images.json');
