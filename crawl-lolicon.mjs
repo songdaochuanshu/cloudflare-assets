@@ -1,9 +1,9 @@
 // crawl-lolicon.mjs
 // 从 Lolicon API 爬取 R18 图片，上传到 R2
 // 每次运行 5 分钟，每隔 15-20 秒随机下载一张
-// 启动时自动清理 JSON 中 R2 里不存在的假链接
+// 结束后从 R2 重新生成 images-info.json（自动清理假链接）
 import crypto from 'crypto';
-import { writeFileSync, readFileSync, existsSync } from 'fs';
+import { writeFileSync } from 'fs';
 
 const accountId = process.env.R2_ACCOUNT_ID;
 const accessKeyId = process.env.R2_ACCESS_KEY_ID;
@@ -13,6 +13,7 @@ const cdnBase = 'https://img-homepage.openserve.cloud';
 const emptyPayloadHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const host = bucketName + '.' + accountId + '.r2.cloudflarestorage.com';
 const IMAGES_JSON = 'images-info.json';
+const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
 
 const RUN_DURATION = 5 * 60 * 1000;
 const MIN_DELAY = 15000;
@@ -47,8 +48,9 @@ function signRequest(method, uri, query, bodyHash, date) {
   };
 }
 
-async function listAllKeys() {
-  const keys = [];
+// 列出 R2 中所有文件，返回 [{ key, size }]
+async function listAllObjects() {
+  const objects = [];
   let marker = '';
   while (true) {
     let query = 'max-keys=1000';
@@ -60,13 +62,49 @@ async function listAllKeys() {
     });
     if (!resp.ok) break;
     const xml = await resp.text();
-    const matches = xml.matchAll(/<Key>([^<]+)<\/Key>/g);
-    for (const m of matches) keys.push(m[1]);
+    const keyMatches = xml.matchAll(/<Key>([^<]+)<\/Key>/g);
+    const sizeMatches = xml.matchAll(/<Size>(\d+)<\/Size>/g);
+    const keys = [...keyMatches].map(m => m[1]);
+    const sizes = [...sizeMatches].map(m => parseInt(m[1]));
+    for (let i = 0; i < keys.length; i++) {
+      objects.push({ key: keys[i], size: sizes[i] || 0 });
+    }
     if (!xml.includes('<IsTruncated>true</IsTruncated>')) break;
     const nextMarkerMatch = xml.match(/<NextMarker>([^<]+)<\/NextMarker>/);
     marker = nextMarkerMatch ? nextMarkerMatch[1] : '';
   }
-  return keys;
+  return objects;
+}
+
+// 从 R2 文件列表重新生成 images-info.json（只保留图片文件）
+function regenerateImagesJson(allObjects) {
+  const imageObjects = allObjects.filter(obj => {
+    const ext = obj.key.toLowerCase().split('.').pop();
+    return IMAGE_EXTENSIONS.includes('.' + ext);
+  });
+
+  const imagesInfo = imageObjects.map(obj => {
+    const filename = obj.key.split('/').pop();
+    const pid = filename.replace(/\.[^.]+$/, '');
+    const ext = filename.split('.').pop();
+    return {
+      pid: parseInt(pid) || 0,
+      filename,
+      url: cdnBase + '/' + obj.key,
+      title: '',
+      author: '',
+      width: 0,
+      height: 0,
+      tags: [],
+      ext,
+      size_kb: Math.round(obj.size / 1024),
+      downloaded: true,
+    };
+  });
+
+  writeFileSync(IMAGES_JSON, JSON.stringify(imagesInfo, null, 2));
+  console.log('已从 R2 重新生成 ' + IMAGES_JSON + '（' + imagesInfo.length + ' 条记录）');
+  return imagesInfo;
 }
 
 async function uploadToR2(key, body, contentType) {
@@ -107,31 +145,6 @@ function randomDelay() {
   return MIN_DELAY + Math.random() * (MAX_DELAY - MIN_DELAY);
 }
 
-// 清理 images-info.json 中 R2 里不存在的条目
-function cleanImagesJson(existingKeys) {
-  if (!existsSync(IMAGES_JSON)) {
-    console.log(IMAGES_JSON + ' 不存在，跳过清理');
-    return;
-  }
-
-  const images = JSON.parse(readFileSync(IMAGES_JSON, 'utf8'));
-  const before = images.length;
-
-  const cleaned = images.filter(img => {
-    const key = img.filename || (img.pid + '.' + (img.ext || 'jpg'));
-    return existingKeys.has(key);
-  });
-
-  const removed = before - cleaned.length;
-  if (removed > 0) {
-    writeFileSync(IMAGES_JSON, JSON.stringify(cleaned, null, 2));
-    console.log('清理了 ' + removed + ' 条假链接（R2 中不存在）');
-    console.log('剩余 ' + cleaned.length + ' 条有效记录');
-  } else {
-    console.log('JSON 文件无需清理');
-  }
-}
-
 async function main() {
   console.log('=== Lolicon R18 爬虫启动 ===');
   console.log('运行时长: 5 分钟');
@@ -140,13 +153,14 @@ async function main() {
   console.log('');
 
   // 获取 R2 已有文件
-  console.log('获取 R2 已有文件...');
-  const existingKeys = new Set(await listAllKeys());
-  console.log('已有 ' + existingKeys.size + ' 个文件');
+  console.log('获取 R2 文件列表...');
+  const allObjects = await listAllObjects();
+  const existingKeys = new Set(allObjects.map(o => o.key));
+  console.log('R2 中已有 ' + existingKeys.size + ' 个文件');
 
-  // 清理 JSON 中的假链接
-  console.log('\n清理 images-info.json 中的假链接...');
-  cleanImagesJson(existingKeys);
+  // 从 R2 重新生成 images-info.json（自动清理假链接）
+  console.log('');
+  regenerateImagesJson(allObjects);
 
   // 开始爬取
   console.log('\n开始爬取新图片...');
@@ -154,7 +168,6 @@ async function main() {
   let downloaded = 0;
   let skipped = 0;
   let failed = 0;
-  const newImages = [];
 
   while (Date.now() - startTime < RUN_DURATION) {
     const elapsed = Math.round((Date.now() - startTime) / 1000);
@@ -204,19 +217,6 @@ async function main() {
       console.log('  OK ' + filename + ' (' + Math.round(imgData.length / 1024) + 'KB)');
       downloaded++;
       existingKeys.add(filename);
-      newImages.push({
-        pid,
-        filename,
-        url: cdnBase + '/' + filename,
-        title: imageInfo.title || '',
-        author: imageInfo.author || '',
-        width: imageInfo.width || 0,
-        height: imageInfo.height || 0,
-        tags: imageInfo.tags || [],
-        ext: ext.slice(1),
-        size_kb: Math.round(imgData.length / 1024),
-        downloaded: true,
-      });
     } catch (e) {
       console.log('  错误: ' + e.message);
       failed++;
@@ -227,15 +227,11 @@ async function main() {
     await new Promise(r => setTimeout(r, delay));
   }
 
-  // 更新 images-info.json：把新图片追加进去
-  if (newImages.length > 0) {
-    let existing = [];
-    if (existsSync(IMAGES_JSON)) {
-      existing = JSON.parse(readFileSync(IMAGES_JSON, 'utf8'));
-    }
-    existing.push(...newImages);
-    writeFileSync(IMAGES_JSON, JSON.stringify(existing, null, 2));
-    console.log('\n已将 ' + newImages.length + ' 条新记录追加到 ' + IMAGES_JSON);
+  // 爬取结束后再次重新生成 JSON（包含新下载的图片）
+  if (downloaded > 0) {
+    console.log('\n重新生成 images-info.json...');
+    const finalObjects = await listAllObjects();
+    regenerateImagesJson(finalObjects);
   }
 
   console.log('\n========== 爬取完成 ==========');
