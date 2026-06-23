@@ -1,5 +1,5 @@
 // delete-non-lolicon.mjs
-// 根据 images-info-export.json 中的 PID 列表，从 R2 删除对应图片
+// 根据 delete-pids.txt 中的 PID 列表，从 R2 删除对应图片
 import crypto from 'crypto';
 import { readFileSync } from 'fs';
 
@@ -39,7 +39,6 @@ function signRequest(method, uri, query, bodyHash, date) {
   };
 }
 
-// 列出 R2 中所有文件
 async function listAllKeys() {
   const keys = [];
   let marker = '';
@@ -62,7 +61,6 @@ async function listAllKeys() {
   return keys;
 }
 
-// 删除 R2 中的文件
 async function deleteObject(key) {
   const encodedKey = key.split('/').map(p => encodeURIComponent(p)).join('/');
   const { authorization, amzDate } = signRequest('DELETE', '/' + encodedKey, '', emptyPayloadHash, new Date());
@@ -79,17 +77,17 @@ async function main() {
   console.log('Bucket: ' + bucketName);
   console.log('');
 
-  // 读取要删除的图片列表
-  const deleteList = JSON.parse(readFileSync('images-info-export.json', 'utf8'));
-  const deletePids = new Set(deleteList.map(item => String(item.pid)));
+  // 读取 PID 列表（每行一个 PID）
+  const pidText = readFileSync('delete-pids.txt', 'utf8');
+  const deletePids = new Set(
+    pidText.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+  );
   console.log('要删除的图片 PID 数量: ' + deletePids.size);
 
-  // 列出 R2 中所有文件
   console.log('\n获取 R2 文件列表...');
   const allKeys = await listAllKeys();
   console.log('R2 中总文件数: ' + allKeys.length);
 
-  // 找出需要删除的文件
   const toDelete = allKeys.filter(key => {
     const filename = key.split('/').pop();
     const pid = filename.replace(/\.[^.]+$/, '');
@@ -102,12 +100,10 @@ async function main() {
     return;
   }
 
-  // 显示前 10 个
   console.log('\n前 10 个文件:');
   toDelete.slice(0, 10).forEach(key => console.log('  ' + key));
   if (toDelete.length > 10) console.log('  ... 还有 ' + (toDelete.length - 10) + ' 个');
 
-  // 开始删除
   console.log('\n开始删除...');
   let deleted = 0;
   let failed = 0;
@@ -122,7 +118,6 @@ async function main() {
       console.log('FAILED');
       failed++;
     }
-    // 避免太快
     await new Promise(r => setTimeout(r, 100));
   }
 
