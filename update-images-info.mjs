@@ -101,7 +101,7 @@ async function main() {
   console.log('\n上传 images-info.json 到 R2...');
   const jsonBodyHash = crypto.createHash('sha256').update(jsonContent).digest('hex');
   const { authorization: authJson, amzDate: amzDateJson } = signRequest(
-    'PUT', '/images-info.json', 'X-Amz-ACL=bucket-owner-full-control', jsonBodyHash, new Date()
+    'PUT', '/images-info.json', '', jsonBodyHash, new Date()
   );
   const jsonResp = await fetch('https://' + host + '/images-info.json', {
     method: 'PUT',
