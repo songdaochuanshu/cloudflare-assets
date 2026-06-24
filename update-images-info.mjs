@@ -1,5 +1,5 @@
 // update-images-info.mjs
-// 从 R2 homepage-bg 桶列出所有图片，生成/覆盖 images-info.json
+// 从 R2 homepage-bg 桶列出所有图片，生成/覆盖 images-info.json，并上传到 R2
 import crypto from 'crypto';
 import { readFileSync, writeFileSync } from 'fs';
 
@@ -93,8 +93,33 @@ async function main() {
   }).sort((a, b) => a.pid - b.pid);
 
   // 写入 JSON
-  writeFileSync('images-info.json', JSON.stringify(imagesInfo, null, 2), 'utf8');
+  const jsonContent = JSON.stringify(imagesInfo, null, 2);
+  writeFileSync('images-info.json', jsonContent, 'utf8');
   console.log('已写入 images-info.json (' + imagesInfo.length + ' 条记录)');
+
+  // 上传 images-info.json 到 R2
+  console.log('\n上传 images-info.json 到 R2...');
+  const jsonBodyHash = crypto.createHash('sha256').update(jsonContent).digest('hex');
+  const { authorization: authJson, amzDate: amzDateJson } = signRequest(
+    'PUT', '/images-info.json', 'X-Amz-ACL=bucket-owner-full-control', jsonBodyHash, new Date()
+  );
+  const jsonResp = await fetch('https://' + host + '/images-info.json', {
+    method: 'PUT',
+    headers: {
+      'Authorization': authJson,
+      'x-amz-content-sha256': jsonBodyHash,
+      'x-amz-date': amzDateJson,
+      'Host': host,
+      'Content-Type': 'application/json',
+      'x-amz-acl': 'bucket-owner-full-control',
+    },
+    body: jsonContent,
+  });
+  if (jsonResp.ok) {
+    console.log('✅ images-info.json 已上传到 R2');
+  } else {
+    console.log('❌ 上传失败:', jsonResp.status, await jsonResp.text());
+  }
 
   // 打印前 5 条作为示例
   console.log('\n前 5 条示例:');
