@@ -1,7 +1,7 @@
 // crawl-lolicon.mjs
-// 从 Lolicon API 爬取 R18 图片，上传到 R2
+// 从 Lolicon API 爬取图片，上传到 R2
+// r18=1 的图片放 r18/，r18=0 的图片放 normal/
 // 每次运行 5 分钟，每隔 15-20 秒随机下载一张
-// 结束后从 R2 重新生成 images-info.json（自动清理假链接）
 import crypto from 'crypto';
 import { writeFileSync } from 'fs';
 
@@ -12,13 +12,17 @@ const bucketName = process.env.R2_HOMEPAGE_BUCKET || 'homepage-bg';
 const cdnBase = 'https://img-homepage.openserve.cloud';
 const emptyPayloadHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const host = bucketName + '.' + accountId + '.r2.cloudflarestorage.com';
-const IMAGES_JSON = 'images-info.json';
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-const R2_PREFIX = 'r18/';
 
 const RUN_DURATION = 5 * 60 * 1000;
 const MIN_DELAY = 15000;
 const MAX_DELAY = 20000;
+
+// 爬取模式：r18 和 normal 交替
+const MODES = [
+  { r18: 1, prefix: 'r18/', label: 'R18' },
+  { r18: 0, prefix: 'normal/', label: 'Normal' },
+];
 
 function getSignatureKey(key, dateStamp) {
   const kDate = crypto.createHmac('sha256', 'AWS4' + key).update(dateStamp).digest();
@@ -31,10 +35,9 @@ function formatDate(date) {
   return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 }
 
-function signRequest(method, uri, query, bodyHash, date, extraHeaders, debug) {
+function signRequest(method, uri, query, bodyHash, date, extraHeaders) {
   const amzDate = formatDate(date);
   const dateStamp = amzDate.slice(0, 8);
-  // Build header entries: host + extra + x-amz-content-sha256 + x-amz-date (sorted by header name)
   const headerEntries = [
     ['host', host],
     ['x-amz-content-sha256', bodyHash],
@@ -53,17 +56,6 @@ function signRequest(method, uri, query, bodyHash, date, extraHeaders, debug) {
   const credentialScope = dateStamp + '/auto/s3/aws4_request';
   const hashedCanonicalRequest = crypto.createHash('sha256').update(canonicalRequest).digest('hex');
   const stringToSign = algorithm + '\n' + amzDate + '\n' + credentialScope + '\n' + hashedCanonicalRequest;
-  if (debug) {
-    console.error('--- SIGN DEBUG ---');
-    console.error('Method:', method);
-    console.error('URI:', uri);
-    console.error('Query:', query);
-    console.error('SignedHeaders:', signedHeaders);
-    console.error('CanonicalRequest:\n' + canonicalRequest);
-    console.error('CanonicalRequestHash:', hashedCanonicalRequest);
-    console.error('StringToSign:\n' + stringToSign);
-    console.error('--- END DEBUG ---');
-  }
   const signingKey = getSignatureKey(secretAccessKey, dateStamp);
   const signature = crypto.createHmac('sha256', signingKey).update(stringToSign).digest('hex');
   return {
@@ -72,7 +64,6 @@ function signRequest(method, uri, query, bodyHash, date, extraHeaders, debug) {
   };
 }
 
-// 列出 R2 中所有文件，返回 [{ key, size }]
 async function listAllObjects() {
   const objects = [];
   let marker = '';
@@ -85,56 +76,20 @@ async function listAllObjects() {
       headers: { 'Authorization': authorization, 'x-amz-content-sha256': emptyPayloadHash, 'x-amz-date': amzDate, 'Host': host },
     });
     if (!resp.ok) {
-      console.error('R2 list failed: HTTP ' + resp.status + ' ' + resp.statusText);
-      const errBody = await resp.text().catch(() => '');
-      if (errBody) console.error('Response: ' + errBody.slice(0, 500));
+      console.error('R2 list failed: HTTP ' + resp.status);
       break;
     }
     const xml = await resp.text();
-    const keyMatches = xml.matchAll(/<Key>([^<]+)<\/Key>/g);
-    const sizeMatches = xml.matchAll(/<Size>(\d+)<\/Size>/g);
-    const keys = [...keyMatches].map(m => m[1]);
-    const sizes = [...sizeMatches].map(m => parseInt(m[1]));
-    for (let i = 0; i < keys.length; i++) {
-      objects.push({ key: keys[i], size: sizes[i] || 0 });
+    for (const m of xml.matchAll(/<Key>([^<]+)<\/Key>/g)) {
+      const key = m[1];
+      const sizeMatch = xml.match(new RegExp('<Size>(\\d+)</Size>'));
+      objects.push({ key, size: parseInt(sizeMatch?.[1] || '0') });
     }
     if (!xml.includes('<IsTruncated>true</IsTruncated>')) break;
-    const nextMarkerMatch = xml.match(/<NextMarker>([^<]+)<\/NextMarker>/);
-    marker = nextMarkerMatch ? nextMarkerMatch[1] : '';
+    const next = xml.match(/<NextMarker>([^<]+)<\/NextMarker>/);
+    marker = next ? next[1] : '';
   }
   return objects;
-}
-
-// 从 R2 文件列表重新生成 images-info.json（只保留图片文件）
-function regenerateImagesJson(allObjects) {
-  const imageObjects = allObjects.filter(obj => {
-    if (!obj.key.startsWith(R2_PREFIX)) return false;
-    const ext = obj.key.toLowerCase().split('.').pop();
-    return IMAGE_EXTENSIONS.includes('.' + ext);
-  });
-
-  const imagesInfo = imageObjects.map(obj => {
-    const filename = obj.key.split('/').pop();
-    const pid = filename.replace(/\.[^.]+$/, '');
-    const ext = filename.split('.').pop();
-    return {
-      pid: parseInt(pid) || 0,
-      filename,
-      url: cdnBase + '/' + obj.key,
-      title: '',
-      author: '',
-      width: 0,
-      height: 0,
-      tags: [],
-      ext,
-      size_kb: Math.round(obj.size / 1024),
-      downloaded: true,
-    };
-  });
-
-  writeFileSync(IMAGES_JSON, JSON.stringify(imagesInfo, null, 2));
-  console.log('已从 R2 重新生成 ' + IMAGES_JSON + '（' + imagesInfo.length + ' 条记录）');
-  return imagesInfo;
 }
 
 async function uploadToR2(key, body, contentType) {
@@ -154,15 +109,14 @@ async function uploadToR2(key, body, contentType) {
   });
   if (!resp.ok) {
     const respBody = await resp.text().catch(() => '(unable to read body)');
-    console.error('  R2 PUT failed: HTTP ' + resp.status + ' ' + resp.statusText);
-    console.error('  Response: ' + respBody.slice(0, 500));
-    console.error('  Key: ' + key + ', Size: ' + body.length + ' bytes');
+    console.error('  R2 PUT failed: HTTP ' + resp.status);
+    console.error('  Response: ' + respBody.slice(0, 300));
   }
   return resp.ok;
 }
 
-async function fetchRandomImage() {
-  const resp = await fetch('https://api.lolicon.app/setu/v2?num=1&size=original&r18=1');
+async function fetchRandomImage(r18) {
+  const resp = await fetch('https://api.lolicon.app/setu/v2?num=1&size=original&r18=' + r18);
   if (!resp.ok) return null;
   const data = await resp.json();
   if (!data.data || data.data.length === 0) return null;
@@ -182,9 +136,10 @@ function randomDelay() {
 }
 
 async function main() {
-  console.log('=== Lolicon R18 爬虫启动 ===');
+  console.log('=== Lolicon 爬虫启动 ===');
   console.log('运行时长: 5 分钟');
   console.log('下载间隔: 15-20 秒随机');
+  console.log('模式: R18 (r18/) + Normal (normal/) 交替');
   console.log('目标桶: ' + bucketName);
   console.log('');
 
@@ -194,23 +149,22 @@ async function main() {
   const existingKeys = new Set(allObjects.map(o => o.key));
   console.log('R2 中已有 ' + existingKeys.size + ' 个文件');
 
-  // 从 R2 重新生成 images-info.json（自动清理假链接）
-  console.log('');
-  regenerateImagesJson(allObjects);
-
   // 开始爬取
-  console.log('\n开始爬取新图片...');
+  console.log('\n开始爬取...');
   const startTime = Date.now();
-  let downloaded = 0;
+  let downloaded = { r18: 0, normal: 0 };
   let skipped = 0;
   let failed = 0;
+  let modeIndex = 0; // 交替使用 r18 和 normal
 
   while (Date.now() - startTime < RUN_DURATION) {
+    const mode = MODES[modeIndex % MODES.length];
+    modeIndex++;
 
     try {
-      const imageInfo = await fetchRandomImage();
+      const imageInfo = await fetchRandomImage(mode.r18);
       if (!imageInfo) {
-        console.log('  获取图片信息失败，跳过');
+        console.log('  [${mode.label}] 获取图片信息失败，跳过');
         failed++;
         await new Promise(r => setTimeout(r, randomDelay()));
         continue;
@@ -219,37 +173,38 @@ async function main() {
       const pid = imageInfo.pid;
       const ext = '.' + (imageInfo.ext || 'jpg');
       const filename = pid + ext;
+      const r2Key = mode.prefix + filename;
 
-      if (existingKeys.has(R2_PREFIX + filename)) {
-        console.log('  ' + filename + ' 已存在，跳过');
+      if (existingKeys.has(r2Key)) {
+        console.log('  [' + mode.label + '] ' + filename + ' 已存在，跳过');
         skipped++;
         await new Promise(r => setTimeout(r, randomDelay()));
         continue;
       }
 
-      console.log('  下载 ' + filename + '...');
+      console.log('  [' + mode.label + '] 下载 ' + filename + '...');
       const imgUrl = imageInfo.urls.original;
       const imgData = await downloadImage(imgUrl);
       if (!imgData) {
-        console.log('  下载失败');
+        console.log('  [' + mode.label + '] 下载失败');
         failed++;
         await new Promise(r => setTimeout(r, randomDelay()));
         continue;
       }
 
-      console.log('  上传到 R2...');
+      console.log('  [' + mode.label + '] 上传到 ' + r2Key + '...');
       const contentType = ext === '.png' ? 'image/png' : 'image/jpeg';
-      const uploaded = await uploadToR2(R2_PREFIX + filename, imgData, contentType);
+      const uploaded = await uploadToR2(r2Key, imgData, contentType);
       if (!uploaded) {
-        console.log('  上传失败');
+        console.log('  [' + mode.label + '] 上传失败');
         failed++;
         await new Promise(r => setTimeout(r, randomDelay()));
         continue;
       }
 
-      console.log('  OK ' + filename + ' (' + Math.round(imgData.length / 1024) + 'KB)');
-      downloaded++;
-      existingKeys.add(R2_PREFIX + filename);
+      console.log('  [' + mode.label + '] OK ' + filename + ' (' + Math.round(imgData.length / 1024) + 'KB)');
+      downloaded[mode.r18 ? 'r18' : 'normal']++;
+      existingKeys.add(r2Key);
     } catch (e) {
       console.log('  错误: ' + e.message);
       failed++;
@@ -260,15 +215,9 @@ async function main() {
     await new Promise(r => setTimeout(r, delay));
   }
 
-  // 爬取结束后再次重新生成 JSON（包含新下载的图片）
-  if (downloaded > 0) {
-    console.log('\n重新生成 images-info.json...');
-    const finalObjects = await listAllObjects();
-    regenerateImagesJson(finalObjects);
-  }
-
   console.log('\n========== 爬取完成 ==========');
-  console.log('成功下载: ' + downloaded + ' 张');
+  console.log('R18 下载: ' + downloaded.r18 + ' 张');
+  console.log('Normal 下载: ' + downloaded.normal + ' 张');
   console.log('跳过(已存在): ' + skipped + ' 张');
   console.log('失败: ' + failed + ' 张');
 }

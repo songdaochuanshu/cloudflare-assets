@@ -1,4 +1,4 @@
-name: Crawl Lolicon Images
+name: Crawl Lolicon Images (R18 + Normal)
 
 on:
   workflow_dispatch:
