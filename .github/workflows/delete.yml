@@ -15,7 +15,7 @@ jobs:
           node-version: '20'
 
       - name: Delete non-Lolicon images from R2
-        run: node delete-non-lolicon.mjs
+        run: node r2/delete-non-lolicon.mjs
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}

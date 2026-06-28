@@ -22,7 +22,7 @@ jobs:
           node-version: '20'
 
       - name: Crawl Lolicon images
-        run: node crawl-lolicon.mjs
+        run: node r2/crawl-lolicon.mjs
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}

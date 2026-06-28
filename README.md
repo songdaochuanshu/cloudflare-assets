@@ -4,13 +4,15 @@ Cloudflare R2 图片管理工具集，围绕 Lolicon API（Pixiv 插画）实现
 
 ## 功能
 
+### R2（图片管理）
+
 | 脚本 | 功能 | 触发方式 |
 |---|---|---|
-| `crawl-lolicon.mjs` | 从 Lolicon API 爬取图片上传到 R2 | 每天 5 次定时 + 手动 |
-| `check-lolicon.mjs` | 检查 R2 中哪些图片来自 Lolicon API | 手动 |
-| `delete-non-lolicon.mjs` | 根据 PID 列表删除 R2 中的非 Lolicon 图片 | 手动 |
-| `delete-images.mjs` | 根据文件名列表删除 R2 中的指定图片 | 手动 |
-| `update-images-info.mjs` | 从 R2 重新生成 `images-info.json` 并上传 | 每天定时 + 手动 |
+| `r2/crawl-lolicon.mjs` | 从 Lolicon API 爬取图片上传到 R2 | 每天 5 次定时 + 手动 |
+| `r2/check-lolicon.mjs` | 检查 R2 中哪些图片来自 Lolicon API | 手动 |
+| `r2/delete-non-lolicon.mjs` | 根据 PID 列表删除 R2 中的非 Lolicon 图片 | 手动 |
+| `r2/delete-images.mjs` | 根据文件名列表删除 R2 中的指定图片 | 手动 |
+| `r2/update-images-info.mjs` | 从 R2 重新生成 `images-info.json` 并上传 | 每天定时 + 手动 |
 
 ## 技术栈
 

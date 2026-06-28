@@ -28,7 +28,7 @@ jobs:
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
           R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
           R2_HOMEPAGE_BUCKET: homepage-bg
-        run: node update-images-info.mjs
+        run: node r2/update-images-info.mjs
 
       - name: Commit and push if changed
         run: |

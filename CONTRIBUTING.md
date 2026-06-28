@@ -4,20 +4,23 @@
 
 ```
 cloudflare-assets/
-├── crawl-lolicon.mjs          # 爬虫主脚本
-├── check-lolicon.mjs          # 图片来源检查
-├── delete-images.mjs          # 按文件名删除
-├── delete-non-lolicon.mjs     # 按 PID 删除
-├── update-images-info.mjs     # 元数据更新
-├── images-info.json           # 图片元数据（自动生成）
-├── output/                    # 检查结果输出目录
-│   ├── lolicon-images.json
-│   └── non-lolicon-images.json
+├── r2/                            # R2 图片管理
+│   ├── crawl-lolicon.mjs          # 爬虫主脚本
+│   ├── check-lolicon.mjs          # 图片来源检查
+│   ├── delete-images.mjs          # 按文件名删除
+│   ├── delete-non-lolicon.mjs     # 按 PID 删除
+│   ├── update-images-info.mjs     # 元数据更新
+│   ├── images-info.json           # 图片元数据（自动生成）
+│   └── output/                    # 检查结果输出目录
+│       ├── lolicon-images.json
+│       └── non-lolicon-images.json
+├── cdn/                           # CDN 配置（待扩展）
+├── workers/                       # Workers 脚本（待扩展）
 └── .github/workflows/
-    ├── crawl.yml              # 定时爬取
-    ├── check.yml              # 手动检查
-    ├── delete.yml             # 手动删除
-    └── update-images-info.yml # 定时更新元数据
+    ├── crawl.yml                  # 定时爬取
+    ├── check.yml                  # 手动检查
+    ├── delete.yml                 # 手动删除
+    └── update-images-info.yml     # 定时更新元数据
 ```
 
 ## 核心设计

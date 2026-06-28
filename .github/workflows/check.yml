@@ -15,7 +15,7 @@ jobs:
           node-version: '20'
 
       - name: Check images against Lolicon API
-        run: node check-lolicon.mjs
+        run: node r2/check-lolicon.mjs
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
