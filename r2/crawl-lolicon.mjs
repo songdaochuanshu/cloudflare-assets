@@ -149,13 +149,13 @@ async function main() {
   const existingKeys = new Set(allObjects.map(o => o.key));
   console.log('R2 中已有 ' + existingKeys.size + ' 个文件');
 
-  // 开始爬取
-  console.log('\n开始爬取...');
+  // 开始下载
+  console.log('\n开始下载...');
   const startTime = Date.now();
-  let downloaded = { r18: 0, normal: 0 };
+  const pending = []; // 暂存下载的图片，最后统一上传
   let skipped = 0;
   let failed = 0;
-  let modeIndex = 0; // 交替使用 r18 和 normal
+  let modeIndex = 0;
 
   while (Date.now() - startTime < RUN_DURATION) {
     const mode = MODES[modeIndex % MODES.length];
@@ -164,7 +164,7 @@ async function main() {
     try {
       const imageInfo = await fetchRandomImage(mode.r18);
       if (!imageInfo) {
-        console.log('  [${mode.label}] 获取图片信息失败，跳过');
+        console.log('  [' + mode.label + '] 获取图片信息失败，跳过');
         failed++;
         await new Promise(r => setTimeout(r, randomDelay()));
         continue;
@@ -192,18 +192,9 @@ async function main() {
         continue;
       }
 
-      console.log('  [' + mode.label + '] 上传到 ' + r2Key + '...');
       const contentType = ext === '.png' ? 'image/png' : 'image/jpeg';
-      const uploaded = await uploadToR2(r2Key, imgData, contentType);
-      if (!uploaded) {
-        console.log('  [' + mode.label + '] 上传失败');
-        failed++;
-        await new Promise(r => setTimeout(r, randomDelay()));
-        continue;
-      }
-
-      console.log('  [' + mode.label + '] OK ' + filename + ' (' + Math.round(imgData.length / 1024) + 'KB)');
-      downloaded[mode.r18 ? 'r18' : 'normal']++;
+      pending.push({ r2Key, filename, imgData, contentType, label: mode.label });
+      console.log('  [' + mode.label + '] 已下载 ' + filename + ' (' + Math.round(imgData.length / 1024) + 'KB)，等待批量上传');
       existingKeys.add(r2Key);
     } catch (e) {
       console.log('  错误: ' + e.message);
@@ -215,11 +206,34 @@ async function main() {
     await new Promise(r => setTimeout(r, delay));
   }
 
+  // 批量上传
+  let uploaded = { r18: 0, normal: 0 };
+  let uploadFailed = 0;
+
+  if (pending.length > 0) {
+    console.log('\n========== 开始批量上传 ==========');
+    console.log('待上传: ' + pending.length + ' 张');
+    console.log('');
+
+    for (const item of pending) {
+      process.stdout.write('  上传 ' + item.r2Key + '... ');
+      const ok = await uploadToR2(item.r2Key, item.imgData, item.contentType);
+      if (ok) {
+        console.log('OK');
+        uploaded[item.label === 'R18' ? 'r18' : 'normal']++;
+      } else {
+        console.log('FAILED');
+        uploadFailed++;
+      }
+      await new Promise(r => setTimeout(r, 100));
+    }
+  }
+
   console.log('\n========== 爬取完成 ==========');
-  console.log('R18 下载: ' + downloaded.r18 + ' 张');
-  console.log('Normal 下载: ' + downloaded.normal + ' 张');
+  console.log('下载: R18 ' + uploaded.r18 + ' 张, Normal ' + uploaded.normal + ' 张');
   console.log('跳过(已存在): ' + skipped + ' 张');
-  console.log('失败: ' + failed + ' 张');
+  console.log('下载失败: ' + failed + ' 张');
+  console.log('上传失败: ' + uploadFailed + ' 张');
 }
 
 main();
