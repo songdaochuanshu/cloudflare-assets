@@ -3,10 +3,10 @@
 import crypto from 'crypto';
 import { readFileSync, writeFileSync } from 'fs';
 
-const accountId = process.env.R2_ACCOUNT_ID;
-const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-const bucketName = process.env.R2_IMAGES_BUCKET || 'homepage-bg';
+const accountId = process.env.CF_ACCOUNT_ID;
+const accessKeyId = process.env.R2_KEY_ID;
+const secretAccessKey = process.env.R2_SECRET_KEY;
+const bucketName = process.env.R2_BUCKET || 'homepage-bg';
 const emptyPayloadHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const host = bucketName + '.' + accountId + '.r2.cloudflarestorage.com';
 const customDomain = 'https://img-homepage.openserve.cloud';
