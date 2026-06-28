@@ -3,7 +3,7 @@
 ## 项目结构
 
 ```
-r2-image-manager/
+cloudflare-assets/
 ├── crawl-lolicon.mjs          # 爬虫主脚本
 ├── check-lolicon.mjs          # 图片来源检查
 ├── delete-images.mjs          # 按文件名删除
