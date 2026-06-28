@@ -148,8 +148,13 @@ async function main() {
   }
 
   // 打印前 5 条作为示例
-  console.log('\n前 5 条示例:');
-  imagesInfo.slice(0, 5).forEach(img => {
+  console.log('\n前 5 条示例 (r18):');
+  (imagesInfo.r18 || []).slice(0, 5).forEach(img => {
+    console.log(`  PID: ${img.pid}, File: ${img.filename}, URL: ${img.url}`);
+  });
+  
+  console.log('\n前 5 条示例 (normal):');
+  (imagesInfo.normal || []).slice(0, 5).forEach(img => {
     console.log(`  PID: ${img.pid}, File: ${img.filename}, URL: ${img.url}`);
   });
 }
