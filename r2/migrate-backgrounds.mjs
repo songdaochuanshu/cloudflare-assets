@@ -33,7 +33,7 @@ function signRequest(method, uri, query, bodyHash, date, extraHeaders) {
   const stringToSign = 'AWS4-HMAC-SHA256\n' + amzDate + '\n' + credentialScope + '\n' + hashedCanonicalRequest;
   const signingKey = getSignatureKey(secretAccessKey, dateStamp);
   const signature = crypto.createHmac('sha256', signingKey).update(stringToSign).digest('hex');
-  return { authorization: 'AWS4-H…ial=' + accessKeyId + '/' + credentialScope + ', SignedHeaders=' + signedHeaders + ', Signature=' + signature, amzDate };
+  return { authorization: 'AWS4-HMAC-SHA256 Credential=' + accessKeyId + '/' + credentialScope + ', SignedHeaders=' + signedHeaders + ', Signature=' + signature, amzDate };
 }
 
 async function listAllObjects() {
