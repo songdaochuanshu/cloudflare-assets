@@ -72,34 +72,42 @@ async function main() {
   const allKeys = await listAllKeys();
   console.log('R2 中总文件数: ' + allKeys.length);
 
-  // 构建 images-info.json（收录所有前缀下的图片）
-  const imagesInfo = allKeys.filter(key => {
-    const ext = key.toLowerCase().split('.').pop();
-    return IMAGE_EXTENSIONS.includes('.' + ext);
-  }).map(key => {
+  // 构建 images-info.json（按 r18/normal 分类）
+  const makeEntry = (key) => {
     const filename = key.split('/').pop();
     const pid = filename.replace(/\.[^.]+$/, '');
     const ext = filename.split('.').pop();
-    const url = customDomain + '/' + key;
     return {
       pid: parseInt(pid),
-      filename: filename,
-      url: url,
+      filename,
+      url: customDomain + '/' + key,
       title: '',
       author: '',
       width: 0,
       height: 0,
       tags: [],
-      ext: ext,
+      ext,
       size_kb: 0,
       downloaded: true,
     };
-  }).sort((a, b) => a.pid - b.pid);
+  };
+
+  const r18Images = allKeys
+    .filter(key => key.startsWith('r18/') && IMAGE_EXTENSIONS.includes('.' + key.split('.').pop().toLowerCase()))
+    .map(makeEntry)
+    .sort((a, b) => a.pid - b.pid);
+
+  const normalImages = allKeys
+    .filter(key => key.startsWith('normal/') && IMAGE_EXTENSIONS.includes('.' + key.split('.').pop().toLowerCase()))
+    .map(makeEntry)
+    .sort((a, b) => a.pid - b.pid);
+
+  const imagesInfo = { r18: r18Images, normal: normalImages };
 
   // 写入 JSON
   const jsonContent = JSON.stringify(imagesInfo, null, 2);
   writeFileSync('images-info.json', jsonContent, 'utf8');
-  console.log('已写入 images-info.json (' + imagesInfo.length + ' 条记录)');
+  console.log('已写入 images-info.json (r18: ' + r18Images.length + ' 条, normal: ' + normalImages.length + ' 条)');
 
   // 上传 images-info.json 到 R2
   console.log('\n上传 images-info.json 到 R2...');
