@@ -266,11 +266,41 @@ async function main() {
     console.log('\n✅ 元数据缓存已保存: ' + metadataCachePath);
   }
 
+  // 生成爬取结果摘要
+  const summary = {
+    success: failed === 0 && uploadFailed === 0,
+    timestamp: new Date().toISOString(),
+    duration: Math.round((Date.now() - startTime) / 1000) + '秒',
+    stats: {
+      downloaded: { r18: uploaded.r18, normal: uploaded.normal, total: uploaded.r18 + uploaded.normal },
+      skipped: skipped,
+      failed: { download: failed, upload: uploadFailed, total: failed + uploadFailed },
+    },
+    details: pending.map(item => ({
+      filename: item.filename,
+      r2Key: item.r2Key,
+      label: item.label,
+      size: Math.round(item.imgData.length / 1024) + 'KB',
+      metadata: item.metadata ? {
+        title: item.metadata.title,
+        author: item.metadata.author,
+        width: item.metadata.width,
+        height: item.metadata.height,
+        tags: item.metadata.tags.slice(0, 5), // 只保留前5个标签
+      } : null,
+    })),
+  };
+
+  // 写入结果文件（供 GitHub Actions 读取）
+  writeFileSync('crawl-summary.json', JSON.stringify(summary, null, 2), 'utf8');
+  console.log('\n✅ 爬取结果已保存到 crawl-summary.json');
+
   console.log('\n========== 爬取完成 ==========');
   console.log('下载: R18 ' + uploaded.r18 + ' 张, Normal ' + uploaded.normal + ' 张');
   console.log('跳过(已存在): ' + skipped + ' 张');
   console.log('下载失败: ' + failed + ' 张');
   console.log('上传失败: ' + uploadFailed + ' 张');
+  console.log('\n详细结果已保存到 crawl-summary.json');
 }
 
 main();

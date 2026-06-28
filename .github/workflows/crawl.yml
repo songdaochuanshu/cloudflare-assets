@@ -22,9 +22,18 @@ jobs:
           node-version: '20'
 
       - name: Crawl Lolicon images
+        id: crawl
         run: node r2/crawl-lolicon.mjs
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
           R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
           R2_HOMEPAGE_BUCKET: ${{ secrets.R2_HOMEPAGE_BUCKET }}
+
+      - name: Send email notification
+        if: always()  # 无论成功失败都发送邮件
+        run: node r2/send-email.mjs
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+          WORKFLOW_STATUS: ${{ job.status }}
