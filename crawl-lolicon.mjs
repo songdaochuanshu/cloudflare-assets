@@ -30,7 +30,7 @@ function formatDate(date) {
   return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 }
 
-function signRequest(method, uri, query, bodyHash, date, extraHeaders) {
+function signRequest(method, uri, query, bodyHash, date, extraHeaders, debug) {
   const amzDate = formatDate(date);
   const dateStamp = amzDate.slice(0, 8);
   // Build header entries: host + extra + x-amz-content-sha256 + x-amz-date (sorted by header name)
@@ -52,6 +52,17 @@ function signRequest(method, uri, query, bodyHash, date, extraHeaders) {
   const credentialScope = dateStamp + '/auto/s3/aws4_request';
   const hashedCanonicalRequest = crypto.createHash('sha256').update(canonicalRequest).digest('hex');
   const stringToSign = algorithm + '\n' + amzDate + '\n' + credentialScope + '\n' + hashedCanonicalRequest;
+  if (debug) {
+    console.error('--- SIGN DEBUG ---');
+    console.error('Method:', method);
+    console.error('URI:', uri);
+    console.error('Query:', query);
+    console.error('SignedHeaders:', signedHeaders);
+    console.error('CanonicalRequest:\n' + canonicalRequest);
+    console.error('CanonicalRequestHash:', hashedCanonicalRequest);
+    console.error('StringToSign:\n' + stringToSign);
+    console.error('--- END DEBUG ---');
+  }
   const signingKey = getSignatureKey(secretAccessKey, dateStamp);
   const signature = crypto.createHmac('sha256', signingKey).update(stringToSign).digest('hex');
   return {
@@ -126,7 +137,7 @@ function regenerateImagesJson(allObjects) {
 
 async function uploadToR2(key, body, contentType) {
   const bodyHash = crypto.createHash('sha256').update(body).digest('hex');
-  const { authorization, amzDate } = signRequest('PUT', '/' + key, '', bodyHash, new Date(), { 'content-type': contentType });
+  const { authorization, amzDate } = signRequest('PUT', '/' + key, '', bodyHash, new Date(), { 'content-type': contentType }, true);
   const url = 'https://' + host + '/' + key;
   const resp = await fetch(url, {
     method: 'PUT',
