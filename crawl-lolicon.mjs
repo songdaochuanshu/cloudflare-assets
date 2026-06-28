@@ -30,11 +30,23 @@ function formatDate(date) {
   return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 }
 
-function signRequest(method, uri, query, bodyHash, date) {
+function signRequest(method, uri, query, bodyHash, date, extraHeaders) {
   const amzDate = formatDate(date);
   const dateStamp = amzDate.slice(0, 8);
-  const canonicalHeaders = 'host:' + host + '\nx-amz-content-sha256:' + bodyHash + '\nx-amz-date:' + amzDate + '\n';
-  const signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
+  // Build header entries: host + extra + x-amz-content-sha256 + x-amz-date (sorted by header name)
+  const headerEntries = [
+    ['host', host],
+    ['x-amz-content-sha256', bodyHash],
+    ['x-amz-date', amzDate],
+  ];
+  if (extraHeaders) {
+    for (const [k, v] of Object.entries(extraHeaders)) {
+      headerEntries.push([k.toLowerCase(), v]);
+    }
+  }
+  headerEntries.sort((a, b) => a[0].localeCompare(b[0]));
+  const canonicalHeaders = headerEntries.map(([k, v]) => k + ':' + v).join('\n') + '\n';
+  const signedHeaders = headerEntries.map(([k]) => k).join(';');
   const canonicalRequest = method + '\n' + uri + '\n' + query + '\n' + canonicalHeaders + '\n' + signedHeaders + '\n' + bodyHash;
   const algorithm = 'AWS4-HMAC-SHA256';
   const credentialScope = dateStamp + '/auto/s3/aws4_request';
@@ -114,7 +126,7 @@ function regenerateImagesJson(allObjects) {
 
 async function uploadToR2(key, body, contentType) {
   const bodyHash = crypto.createHash('sha256').update(body).digest('hex');
-  const { authorization, amzDate } = signRequest('PUT', '/' + key, '', bodyHash, new Date());
+  const { authorization, amzDate } = signRequest('PUT', '/' + key, '', bodyHash, new Date(), { 'content-type': contentType });
   const url = 'https://' + host + '/' + key;
   const resp = await fetch(url, {
     method: 'PUT',
