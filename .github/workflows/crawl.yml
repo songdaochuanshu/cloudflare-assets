@@ -32,8 +32,9 @@ jobs:
 
       - name: Send email notification
         if: always()  # 无论成功失败都发送邮件
-        run: node r2/send-email.mjs
+        run: node utils/email-notifier.mjs
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+          WORKFLOW_NAME: 'crawl-lolicon'
           WORKFLOW_STATUS: ${{ job.status }}

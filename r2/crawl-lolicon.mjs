@@ -266,8 +266,9 @@ async function main() {
     console.log('\n✅ 元数据缓存已保存: ' + metadataCachePath);
   }
 
-  // 生成爬取结果摘要
-  const summary = {
+  // 生成工作流结果（标准格式）
+  const workflowResult = {
+    workflow: 'crawl-lolicon',
     success: failed === 0 && uploadFailed === 0,
     timestamp: new Date().toISOString(),
     duration: Math.round((Date.now() - startTime) / 1000) + '秒',
@@ -286,14 +287,20 @@ async function main() {
         author: item.metadata.author,
         width: item.metadata.width,
         height: item.metadata.height,
-        tags: item.metadata.tags.slice(0, 5), // 只保留前5个标签
+        tags: item.metadata.tags.slice(0, 5),
       } : null,
     })),
   };
 
-  // 写入结果文件（供 GitHub Actions 读取）
+  // 同时保存为 crawl-summary.json（向后兼容）和 workflow-result.json（标准格式）
+  const summary = workflowResult; // 保持变量名兼容
+
+  // 写入结果文件（供通用邮件通知组件读取）
   writeFileSync('crawl-summary.json', JSON.stringify(summary, null, 2), 'utf8');
-  console.log('\n✅ 爬取结果已保存到 crawl-summary.json');
+  writeFileSync('workflow-result.json', JSON.stringify(workflowResult, null, 2), 'utf8');
+  console.log('\n✅ 爬取结果已保存:');
+  console.log('   - crawl-summary.json（向后兼容）');
+  console.log('   - workflow-result.json（标准格式，供邮件通知组件读取）');
 
   console.log('\n========== 爬取完成 ==========');
   console.log('下载: R18 ' + uploaded.r18 + ' 张, Normal ' + uploaded.normal + ' 张');
