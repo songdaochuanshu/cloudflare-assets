@@ -7,6 +7,7 @@ const accountId = process.env.CF_ACCOUNT_ID;
 const accessKeyId = process.env.R2_KEY_ID;
 const secretAccessKey = process.env.R2_SECRET_KEY;
 const bucketName = process.env.R2_HOMEPAGE_BUCKET || 'homepage-bg';
+const R2_PREFIX = 'r18/';
 const emptyPayloadHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const host = bucketName + '.' + accountId + '.r2.cloudflarestorage.com';
 
@@ -57,9 +58,9 @@ async function main() {
   let failed = 0;
   for (let i = 0; i < files.length; i++) {
     const filename = files[i].trim();
-    process.stdout.write('[' + (i + 1) + '/' + files.length + '] Deleting ' + filename + '... ');
+    process.stdout.write('[' + (i + 1) + '/' + files.length + '] Deleting ' + R2_PREFIX + filename + '... ');
     try {
-      const ok = await deleteObject(filename);
+      const ok = await deleteObject(R2_PREFIX + filename);
       if (ok) { console.log('OK'); success++; }
       else { console.log('FAILED'); failed++; }
     } catch (e) { console.log('ERROR: ' + e.message); failed++; }

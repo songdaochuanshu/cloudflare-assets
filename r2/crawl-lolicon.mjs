@@ -14,6 +14,7 @@ const emptyPayloadHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca49599
 const host = bucketName + '.' + accountId + '.r2.cloudflarestorage.com';
 const IMAGES_JSON = 'images-info.json';
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+const R2_PREFIX = 'r18/';
 
 const RUN_DURATION = 5 * 60 * 1000;
 const MIN_DELAY = 15000;
@@ -107,6 +108,7 @@ async function listAllObjects() {
 // 从 R2 文件列表重新生成 images-info.json（只保留图片文件）
 function regenerateImagesJson(allObjects) {
   const imageObjects = allObjects.filter(obj => {
+    if (!obj.key.startsWith(R2_PREFIX)) return false;
     const ext = obj.key.toLowerCase().split('.').pop();
     return IMAGE_EXTENSIONS.includes('.' + ext);
   });
@@ -218,7 +220,7 @@ async function main() {
       const ext = '.' + (imageInfo.ext || 'jpg');
       const filename = pid + ext;
 
-      if (existingKeys.has(filename)) {
+      if (existingKeys.has(R2_PREFIX + filename)) {
         console.log('  ' + filename + ' 已存在，跳过');
         skipped++;
         await new Promise(r => setTimeout(r, randomDelay()));
@@ -237,7 +239,7 @@ async function main() {
 
       console.log('  上传到 R2...');
       const contentType = ext === '.png' ? 'image/png' : 'image/jpeg';
-      const uploaded = await uploadToR2(filename, imgData, contentType);
+      const uploaded = await uploadToR2(R2_PREFIX + filename, imgData, contentType);
       if (!uploaded) {
         console.log('  上传失败');
         failed++;
@@ -247,7 +249,7 @@ async function main() {
 
       console.log('  OK ' + filename + ' (' + Math.round(imgData.length / 1024) + 'KB)');
       downloaded++;
-      existingKeys.add(filename);
+      existingKeys.add(R2_PREFIX + filename);
     } catch (e) {
       console.log('  错误: ' + e.message);
       failed++;

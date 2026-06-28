@@ -7,6 +7,7 @@ const accountId = process.env.CF_ACCOUNT_ID;
 const accessKeyId = process.env.R2_KEY_ID;
 const secretAccessKey = process.env.R2_SECRET_KEY;
 const bucketName = process.env.R2_HOMEPAGE_BUCKET || 'homepage-bg';
+const R2_PREFIX = 'r18/';
 const emptyPayloadHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const host = bucketName + '.' + accountId + '.r2.cloudflarestorage.com';
 const customDomain = 'https://img-homepage.openserve.cloud';
@@ -72,11 +73,11 @@ async function main() {
   console.log('R2 中总文件数: ' + allKeys.length);
 
   // 构建 images-info.json
-  const imagesInfo = allKeys.map(key => {
+  const imagesInfo = allKeys.filter(key => key.startsWith(R2_PREFIX)).map(key => {
     const filename = key.split('/').pop();
     const pid = filename.replace(/\.[^.]+$/, '');
     const ext = filename.split('.').pop();
-    const url = customDomain + '/' + filename;
+    const url = customDomain + '/' + key;
     return {
       pid: parseInt(pid),
       filename: filename,
@@ -101,9 +102,9 @@ async function main() {
   console.log('\n上传 images-info.json 到 R2...');
   const jsonBodyHash = crypto.createHash('sha256').update(jsonContent).digest('hex');
   const { authorization: authJson, amzDate: amzDateJson } = signRequest(
-    'PUT', '/images-info.json', '', jsonBodyHash, new Date()
+    'PUT', '/' + R2_PREFIX + 'images-info.json', '', jsonBodyHash, new Date()
   );
-  const jsonResp = await fetch('https://' + host + '/images-info.json', {
+  const jsonResp = await fetch('https://' + host + '/' + R2_PREFIX + 'images-info.json', {
     method: 'PUT',
     headers: {
       'Authorization': authJson,
