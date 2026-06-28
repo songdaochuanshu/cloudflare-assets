@@ -3,7 +3,7 @@
 // r18=1 的图片放 r18/，r18=0 的图片放 normal/
 // 每次运行 5 分钟，每隔 15-20 秒随机下载一张
 import crypto from 'crypto';
-import { writeFileSync } from 'fs';
+import { writeFileSync, readFileSync } from 'fs';
 
 const accountId = process.env.CF_ACCOUNT_ID;
 const accessKeyId = process.env.R2_KEY_ID;
@@ -143,6 +143,16 @@ async function main() {
   console.log('目标桶: ' + bucketName);
   console.log('');
 
+  // 读取现有元数据缓存
+  const metadataCachePath = './metadata-cache.json';
+  let metadataCache = {};
+  try {
+    metadataCache = JSON.parse(readFileSync(metadataCachePath, 'utf8'));
+    console.log('已加载元数据缓存: ' + Object.keys(metadataCache).length + ' 条');
+  } catch (e) {
+    console.log('元数据缓存不存在，将创建新缓存');
+  }
+
   // 获取 R2 已有文件
   console.log('获取 R2 文件列表...');
   const allObjects = await listAllObjects();
@@ -183,6 +193,7 @@ async function main() {
       }
 
       console.log('  [' + mode.label + '] 下载 ' + filename + '...');
+      console.log('    标题: ' + (imageInfo.title || '(无标题)') + ' (by ' + (imageInfo.author || '(未知作者)') + ')');
       const imgUrl = imageInfo.urls.original;
       const imgData = await downloadImage(imgUrl);
       if (!imgData) {
@@ -193,8 +204,23 @@ async function main() {
       }
 
       const contentType = ext === '.png' ? 'image/png' : 'image/jpeg';
-      pending.push({ r2Key, filename, imgData, contentType, label: mode.label });
+      // 保存元数据
+      const metadata = {
+        pid: imageInfo.pid,
+        p: imageInfo.p || 0,
+        uid: imageInfo.uid,
+        title: imageInfo.title || '',
+        author: imageInfo.author || '',
+        width: imageInfo.width || 0,
+        height: imageInfo.height || 0,
+        tags: imageInfo.tags || [],
+        ext: imageInfo.ext || 'jpg',
+        r18: imageInfo.r18 || false,
+        uploadDate: imageInfo.uploadDate || 0,
+      };
+      pending.push({ r2Key, filename, imgData, contentType, label: mode.label, metadata });
       console.log('  [' + mode.label + '] 已下载 ' + filename + ' (' + Math.round(imgData.length / 1024) + 'KB)，等待批量上传');
+      console.log('    元数据: ' + metadata.title + ' (' + metadata.width + 'x' + metadata.height + ')');
       existingKeys.add(r2Key);
     } catch (e) {
       console.log('  错误: ' + e.message);
@@ -221,12 +247,23 @@ async function main() {
       if (ok) {
         console.log('OK');
         uploaded[item.label === 'R18' ? 'r18' : 'normal']++;
+        
+        // 保存元数据到缓存
+        if (item.metadata) {
+          metadataCache[item.metadata.pid] = item.metadata;
+        }
       } else {
         console.log('FAILED');
         uploadFailed++;
       }
       await new Promise(r => setTimeout(r, 100));
     }
+  }
+
+  // 保存元数据缓存到文件
+  if (Object.keys(metadataCache).length > 0) {
+    writeFileSync(metadataCachePath, JSON.stringify(metadataCache, null, 2), 'utf8');
+    console.log('\n✅ 元数据缓存已保存: ' + metadataCachePath);
   }
 
   console.log('\n========== 爬取完成 ==========');

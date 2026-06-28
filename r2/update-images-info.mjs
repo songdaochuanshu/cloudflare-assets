@@ -68,25 +68,39 @@ async function main() {
   console.log('Bucket: ' + bucketName);
   console.log('');
 
+  // 读取元数据缓存
+  let metadataCache = {};
+  try {
+    metadataCache = JSON.parse(readFileSync('./metadata-cache.json', 'utf8'));
+    console.log('已加载元数据缓存: ' + Object.keys(metadataCache).length + ' 条');
+  } catch (e) {
+    console.log('⚠️  元数据缓存不存在，将使用空元数据');
+  }
+
   console.log('获取 R2 文件列表...');
   const allKeys = await listAllKeys();
   console.log('R2 中总文件数: ' + allKeys.length);
 
   // 构建 images-info.json（按 r18/normal 分类）
+  const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
   const makeEntry = (key) => {
     const filename = key.split('/').pop();
-    const pid = filename.replace(/\.[^.]+$/, '');
+    const pid = parseInt(filename.replace(/\.[^.]+$/, ''));
     const ext = filename.split('.').pop();
+    
+    // 尝试从缓存读取元数据
+    const cached = metadataCache[pid] || {};
+    
     return {
-      pid: parseInt(pid),
+      pid,
       filename,
       url: customDomain + '/' + key,
-      title: '',
-      author: '',
-      width: 0,
-      height: 0,
-      tags: [],
-      ext,
+      title: cached.title || '',
+      author: cached.author || '',
+      width: cached.width || 0,
+      height: cached.height || 0,
+      tags: cached.tags || [],
+      ext: cached.ext || ext,
       size_kb: 0,
       downloaded: true,
     };
