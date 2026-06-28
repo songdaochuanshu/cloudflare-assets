@@ -60,7 +60,12 @@ async function listAllObjects() {
     const resp = await fetch(url, {
       headers: { 'Authorization': authorization, 'x-amz-content-sha256': emptyPayloadHash, 'x-amz-date': amzDate, 'Host': host },
     });
-    if (!resp.ok) break;
+    if (!resp.ok) {
+      console.error('R2 list failed: HTTP ' + resp.status + ' ' + resp.statusText);
+      const errBody = await resp.text().catch(() => '');
+      if (errBody) console.error('Response: ' + errBody.slice(0, 500));
+      break;
+    }
     const xml = await resp.text();
     const keyMatches = xml.matchAll(/<Key>([^<]+)<\/Key>/g);
     const sizeMatches = xml.matchAll(/<Size>(\d+)<\/Size>/g);
@@ -122,6 +127,12 @@ async function uploadToR2(key, body, contentType) {
     },
     body,
   });
+  if (!resp.ok) {
+    const respBody = await resp.text().catch(() => '(unable to read body)');
+    console.error('  R2 PUT failed: HTTP ' + resp.status + ' ' + resp.statusText);
+    console.error('  Response: ' + respBody.slice(0, 500));
+    console.error('  Key: ' + key + ', Size: ' + body.length + ' bytes');
+  }
   return resp.ok;
 }
 
