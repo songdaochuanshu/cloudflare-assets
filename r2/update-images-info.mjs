@@ -72,8 +72,11 @@ async function main() {
   const allKeys = await listAllKeys();
   console.log('R2 中总文件数: ' + allKeys.length);
 
-  // 构建 images-info.json
-  const imagesInfo = allKeys.filter(key => key.startsWith(R2_PREFIX)).map(key => {
+  // 构建 images-info.json（收录所有前缀下的图片）
+  const imagesInfo = allKeys.filter(key => {
+    const ext = key.toLowerCase().split('.').pop();
+    return IMAGE_EXTENSIONS.includes('.' + ext);
+  }).map(key => {
     const filename = key.split('/').pop();
     const pid = filename.replace(/\.[^.]+$/, '');
     const ext = filename.split('.').pop();
@@ -102,9 +105,9 @@ async function main() {
   console.log('\n上传 images-info.json 到 R2...');
   const jsonBodyHash = crypto.createHash('sha256').update(jsonContent).digest('hex');
   const { authorization: authJson, amzDate: amzDateJson } = signRequest(
-    'PUT', '/' + R2_PREFIX + 'images-info.json', '', jsonBodyHash, new Date()
+    'PUT', '/images-info.json', '', jsonBodyHash, new Date()
   );
-  const jsonResp = await fetch('https://' + host + '/' + R2_PREFIX + 'images-info.json', {
+  const jsonResp = await fetch('https://' + host + '/images-info.json', {
     method: 'PUT',
     headers: {
       'Authorization': authJson,
