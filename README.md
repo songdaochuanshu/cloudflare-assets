@@ -30,7 +30,7 @@ Cloudflare R2 图片管理工具集，围绕 Lolicon API（Pixiv 插画）实现
 | `CF_ACCOUNT_ID` | Cloudflare 账户 ID |
 | `R2_KEY_ID` | R2 API Token 的 Access Key ID |
 | `R2_SECRET_KEY` | R2 API Token 的 Secret Key |
-| `R2_BUCKET` | R2 桶名（默认 `homepage-bg`） |
+| `R2_HOMEPAGE_BUCKET` | homepage-bg 图片桶名 |
 
 ## 本地运行
 
@@ -39,7 +39,7 @@ Cloudflare R2 图片管理工具集，围绕 Lolicon API（Pixiv 插画）实现
 export CF_ACCOUNT_ID="your-account-id"
 export R2_KEY_ID="your-key-id"
 export R2_SECRET_KEY="your-secret-key"
-export R2_BUCKET="homepage-bg"
+export R2_HOMEPAGE_BUCKET="homepage-bg"
 
 # 运行爬虫
 node crawl-lolicon.mjs
@@ -88,6 +88,15 @@ node update-images-info.mjs
 | `delete.yml` | 手动触发 | 删除指定图片 |
 
 ## 注意事项
+
+### 环境变量命名规范
+
+桶相关变量统一使用 `R2_<用途>_BUCKET` 格式：
+
+| 变量名 | 用途 |
+|---|---|
+| `R2_HOMEPAGE_BUCKET` | 首页背景图桶 |
+| `R2_XXX_BUCKET` | 未来新增桶（按用途命名） |
 
 - 爬虫每次运行限制下载 2 张，避免被 Lolicon API 封禁 IP
 - 下载间隔 3-5 秒随机

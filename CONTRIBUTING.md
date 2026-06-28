@@ -52,7 +52,16 @@ r2-image-manager/
 | `CF_ACCOUNT_ID` | Cloudflare 账户 ID | 无 |
 | `R2_KEY_ID` | R2 API Token Access Key | 无 |
 | `R2_SECRET_KEY` | R2 API Token Secret Key | 无 |
-| `R2_BUCKET` | R2 桶名 | `homepage-bg` |
+| `R2_HOMEPAGE_BUCKET` | homepage-bg 图片桶 | `homepage-bg` |
+
+## 环境变量命名规范
+
+桶相关变量统一使用 `R2_<用途>_BUCKET` 格式：
+
+| 变量名 | 用途 |
+|---|---|
+| `R2_HOMEPAGE_BUCKET` | 首页背景图桶 |
+| `R2_XXX_BUCKET` | 未来新增桶（按用途命名） |
 
 ## 已知问题
 
