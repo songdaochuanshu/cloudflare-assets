@@ -24,6 +24,9 @@
 - [x] images-info.json 改为分类结构：{ "r18": [...], "normal": [...] }
 - [x] images-info.json 上传到 R2 根目录，收录所有前缀
 - [x] README、CONTRIBUTING、CONTEXT、PROGRESS 文档
+- [x] 图片元数据补全（title、author、tags、width、height）
+- [x] 邮件通知功能（使用 Resend API）
+- [x] 抽离通用邮件通知组件（utils/email-notifier.mjs）
 
 ### 当前状态
 
@@ -39,5 +42,5 @@
 - [ ] 抽取 R2 签名为公共模块（消除代码重复）
 - [ ] CDN 配置管理（cdn/ 目录）
 - [ ] Workers 脚本（workers/ 目录）
-- [ ] 图片元数据补全（title、author、tags、width、height）
+- [ ] 为其他工作流添加邮件通知（update-images-info、delete-images 等）
 - [ ] 删除 R2 根目录下的旧 images-info.json（如果有残留）
