@@ -15,9 +15,10 @@ const host = bucketName + '.' + accountId + '.r2.cloudflarestorage.com';
 const IMAGES_JSON = 'images-info.json';
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
 
-const RUN_DURATION = 5 * 60 * 1000;
-const MIN_DELAY = 15000;
-const MAX_DELAY = 20000;
+const RUN_DURATION = 30 * 1000;
+const MIN_DELAY = 3000;
+const MAX_DELAY = 5000;
+const MAX_DOWNLOADS = 2;
 
 function getSignatureKey(key, dateStamp) {
   const kDate = crypto.createHmac('sha256', 'AWS4' + key).update(dateStamp).digest();
@@ -181,8 +182,7 @@ function randomDelay() {
 
 async function main() {
   console.log('=== Lolicon R18 爬虫启动 ===');
-  console.log('运行时长: 5 分钟');
-  console.log('下载间隔: 15-20 秒随机');
+  console.log('最大下载数: ' + MAX_DOWNLOADS + ' 张');
   console.log('目标桶: ' + bucketName);
   console.log('');
 
@@ -203,10 +203,7 @@ async function main() {
   let skipped = 0;
   let failed = 0;
 
-  while (Date.now() - startTime < RUN_DURATION) {
-    const elapsed = Math.round((Date.now() - startTime) / 1000);
-    const remaining = Math.round((RUN_DURATION - (Date.now() - startTime)) / 1000);
-    console.log('[' + elapsed + 's / 300s] 剩余 ' + remaining + 's');
+  while (downloaded < MAX_DOWNLOADS) {
 
     try {
       const imageInfo = await fetchRandomImage();
