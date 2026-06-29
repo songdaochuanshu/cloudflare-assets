@@ -2,8 +2,7 @@
 // 使用智谱 AI GLM-4-Flash 生成原创文章，上传到 R2
 
 import https from 'https';
-import { S3Client, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
-import { Readable } from 'stream';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
 // R2 配置
 const R2_ENDPOINT = `https://${process.env.CF_ACCOUNT_ID}.r2.cloudflarestorage.com`;
@@ -20,9 +19,9 @@ const s3 = new S3Client({
 
 // 智谱 AI 配置
 const ZHIPU_API_KEY = process.env.ZHIPU_API_KEY;
-const ZHIPU_MODEL = 'glm-4-flash'; // 免费模型
+const ZHIPU_MODEL = 'glm-4-flash';
 
-// 文章主题列表（可扩展）
+// 文章主题列表
 const TOPICS = [
   'Cloudflare Workers 实战教程',
   '前端性能优化技巧',
@@ -34,28 +33,31 @@ const TOPICS = [
   '技术博客写作技巧',
 ];
 
-// 调用智谱 AI 生成文章
+// 调用智谱 AI 生成文章（优化 Prompt，减少 AI 味儿）
 function generateArticle(topic) {
   return new Promise((resolve, reject) => {
     console.log(`[generate-article] 开始生成文章：《${topic}》`);
     
-    const prompt = `请写一篇关于"${topic}"的技术文章，要求：
-1. 原创度高，有个人见解
-2. 结构清晰（引言、正文、总结）
-3. 字数 1000-1500 字
-4. 语言通俗易懂，适合技术博客
-5. 包含代码示例（如果适用）
-6. 输出格式：Markdown
+    // 优化后的 Prompt：让 AI 模仿真人博主
+    const prompt = `你是一位叫"宋道传书"的技术博主，写了 10 年博客。请用你的真实口吻写一篇关于"${topic}"的文章。
 
-直接输出文章内容，不要加任何解释或前缀。`;
+写作要求：
+- 像在和朋友聊天，口语化，可以用"其实"、"说实话"、"我觉着"
+- 加入个人经历（可以是虚构的，但要合理），比如"上次我做一个项目时..."
+- 不要罗列 1、2、3 点，要像讲故事一样写
+- 不要用"总之"、"需要注意的是"这种教科书式的话
+- 字数 1200-1800 字
+- 输出 Markdown 格式
+
+直接开始写，不要加"好的，我来写..."这种前缀。`;
     
     const payload = JSON.stringify({
       model: ZHIPU_MODEL,
       messages: [
         { role: 'user', content: prompt }
       ],
-      temperature: 0.7,
-      max_tokens: 2000,
+      temperature: 0.9,  // 提高随机性
+      max_tokens: 2500,
     });
     
     const options = {
@@ -129,14 +131,6 @@ layout: post
   return filename;
 }
 
-// 更新 manifest.json
-// 注意：此函数需要在 CommonJS 环境下运行，或改用 fetch 调用 R2 API
-// 建议：在工作流中单独调用 crawl-cnblogs.mjs --fix-manifest
-async function updateManifest() {
-  console.log('[generate-article] ⚠️  updateManifest() 需要在工作流中单独调用 crawl-cnblogs.mjs --fix-manifest');
-  console.log('[generate-article] 跳过 manifest.json 更新，请在下一步执行');
-}
-
 // 主函数
 async function main() {
   let topic = process.argv[2];
@@ -157,11 +151,10 @@ async function main() {
     console.log(`[generate-article] 标题：《${title}》`);
     
     await uploadToR2(title, content);
-    // manifest.json 更新由工作流单独步骤完成
-    // await updateManifest();
+    // manifest.json 由工作流单独更新
     
     console.log('[generate-article] ✅ 完成！');
-    console.log('[generate-article] 提示：请接下来运行 crawl-cnblogs.mjs --fix-manifest 更新 manifest.json');
+    console.log('[generate-article] 提示：接下来请运行 crawl-cnblogs.mjs --fix-manifest 更新 manifest.json');
   } catch (err) {
     console.error('[generate-article] 错误：', err.message);
     process.exit(1);
