@@ -74,62 +74,116 @@ async function getUsedTitles() {
   }
 }
 
-// 关键词重叠相似度（过滤含相同关键词的标题）
-function isSimilar(a, b) {
-  if (!a || !b) return false;
-  // 提取中文词（2+字符）
-  const wordsA = new Set(a.match(/[\u4e00-\u9fa5]{2,}/g) || []);
-  const wordsB = new Set(b.match(/[\u4e00-\u9fa5]{2,}/g) || []);
-  // 英文词
-  const enA = new Set(a.match(/[a-zA-Z]{3,}/g) || []);
-  const enB = new Set(b.match(/[a-zA-Z]{3,}/g) || []);
-  
-  // 中文中相同词数
-  let cnOverlap = 0;
-  for (const w of wordsA) if (wordsB.has(w)) cnOverlap++;
-  
-  // 英文中相同词数
-  let enOverlap = 0;
-  for (const w of enA) if (enB.has(w)) enOverlap++;
-  
-  // 阈值：中文2+重叠 或 英文1+重叠
-  return cnOverlap >= 2 || enOverlap >= 1;
+// 用智谱 AI 判断标题（广告检测 + 相似度 + 质量评分）
+function askAIForTitle(cnTitles, usedTitles) {
+  return new Promise((resolve, reject) => {
+    const prompt = `你是博客文章标题审核员。给定一批博客园标题（候选池）和已发布过的标题列表，请筛选出最适合用于生成技术博客文章的一个标题。
+
+已发布的标题（不要重复或相似）：
+${usedTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
+
+候选标题池：
+${cnTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
+
+请从候选池中选出**唯一一个**最合适的标题，返回 JSON 格式：
+{
+  "chosen": "被选中的标题"（从候选池中选，写完整标题）,
+  "reason": "简短说明选中原因"（20字以内）,
+  "rejected": [
+    {"title": "标题1", "reason": "拒绝原因"},
+    {"title": "标题2", "reason": "拒绝原因"}
+  ]
 }
 
-// 选取一个未使用、不相似的标题
+筛选标准（必须全部满足）：
+1. 不是广告（不含"免费领取"、"扫码"、"加微信"、"点击领取"、"限时"、"优惠码"等营销词）
+2. 不是重复或高度相似的标题（与已发布列表相比主题/用词相近的都要排除）
+3. 是正经技术文章（能写出一篇 1000+ 字的有价值文章）
+4. 有一定通用性（不是针对某个特定小众产品的）
+
+只返回一个标题，不要返回多个。如果候选池全部不合适，返回空的 chosen（chosen: ""）。`;
+
+    const payload = JSON.stringify({
+      model: ZHIPU_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.1,
+      max_tokens: 1500,
+    });
+
+    const options = {
+      hostname: 'open.bigmodel.cn',
+      path: '/api/paas/v4/chat/completions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ZHIPU_API_KEY}`,
+        'Content-Length': Buffer.byteLength(payload),
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const response = JSON.parse(data);
+          if (response.choices && response.choices[0]) {
+            const raw = response.choices[0].message.content;
+            // 尝试从 markdown 代码块或纯文本中提取 JSON
+            const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) || raw.match(/^\s*(\{[\s\S]*\})/);
+            const jsonStr = jsonMatch ? jsonMatch[1] : raw;
+            const result = JSON.parse(jsonStr.trim());
+            console.log('[generate-article] AI 标题筛选结果:', result.reason);
+            resolve(result);
+          } else {
+            reject(new Error(`AI 返回格式错误：${data}`));
+          }
+        } catch (e) {
+          reject(new Error(`解析 AI 响应失败（${e.message}）：${data.substring(0, 200)}`));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+// 选取一个未使用、不相似、无广告的标题
 async function pickUnusedTopic() {
   const [cnTitles, usedTitles] = await Promise.all([
     fetchCnblogsTitles(30),
     getUsedTitles(),
   ]);
-  
+
   if (cnTitles.length === 0) {
     throw new Error('博客园未获取到任何标题');
   }
-  
-  // 过滤
-  const available = cnTitles.filter(t => {
-    // 1. 不能完全相同
-    if (usedTitles.some(u => u === t)) {
-      console.log(`[generate-article] 跳过（已用）: ${t}`);
-      return false;
-    }
-    // 2. 不能太相似
-    if (usedTitles.some(u => isSimilar(u, t))) {
-      console.log(`[generate-article] 跳过（相似）: ${t}`);
-      return false;
-    }
-    return true;
-  });
-  
-  if (available.length === 0) {
-    throw new Error('博客园标题全部已用或相似，请先更新列表');
+
+  if (usedTitles.length === 0) {
+    // 没有任何已用标题时，随机选一个（但仍做广告检测）
+    const { chosen } = await askAIForTitle(cnTitles, []);
+    if (!chosen) throw new Error('博客园标题全部不合适（含广告或非技术类），请稍后重试');
+    console.log(`[generate-article] 选中标题: ${chosen}`);
+    return chosen;
   }
-  
-  // 随机选一个
-  const topic = available[Math.floor(Math.random() * available.length)];
-  console.log(`[generate-article] 选中标题: ${topic}`);
-  return topic;
+
+  // AI 判断相似度和广告
+  const result = await askAIForTitle(cnTitles, usedTitles);
+  if (!result.chosen) {
+    throw new Error('博客园标题全部不合适（含广告/重复/非技术类），请稍后重试');
+  }
+
+  // 打印被拒绝的标题及原因
+  if (result.rejected && result.rejected.length > 0) {
+    result.rejected.slice(0, 5).forEach(r => {
+      console.log(`[generate-article] 跳过（${r.reason}）: ${r.title}`);
+    });
+  }
+
+  console.log(`[generate-article] 选中标题: ${result.chosen}`);
+  return result.chosen;
 }
 
 // ──────────────────────────────────────────────
