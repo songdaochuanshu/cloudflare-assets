@@ -39,7 +39,8 @@
 
 ### 待办
 
-- [ ] 抽取 R2 签名为公共模块（消除代码重复）
+- [x] 抽取 R2 签名为公共模块 —— 新建 r2/r2-client.mjs，5 个脚本改用 import
+  - [x] 通过 GitHub Actions 真实环境验证（Update Images Info #12 ✅）
 - [ ] CDN 配置管理（cdn/ 目录）
 - [ ] Workers 脚本（workers/ 目录）
 - [ ] 为其他工作流添加邮件通知（update-images-info、delete-images 等）
