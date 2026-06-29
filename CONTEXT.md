@@ -26,6 +26,7 @@ Cloudflare 资产管理工具集，包含两个核心模块：
 7. **分类元数据**：`images-info.json` 按 `{ "r18": [...], "normal": [...] }` 结构组织
 8. **AI 文章生成**：智谱 GLM-4-Flash 生成文章，anti-slop 模块评分过滤
 9. **按桶分目录**：`buckets/` 下按 R2 桶名组织脚本，共享模块在 `r2/` 和 `utils/`
+10. **Docker CI**：所有工作流使用 `node:20-slim` 容器运行，避免 `setup-node@v4` 兼容性问题
 
 ## 数据流
 

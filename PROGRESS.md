@@ -79,7 +79,8 @@
 - [x] `cleanup-blog.yml` — 清空博客
 - [x] `delete-all-posts.yml` / `delete-first-posts.yml` / `delete-old-posts.yml`
 - [x] `fix-manifest-tags.yml` — 标签修复
-- [x] 改用 Docker `node:20-slim` 避免 `setup-node@v4` 失败
+- [x] 改用 Docker `node:20-slim` 避免 `setup-node@v4` 失败（仅 fix-manifest-tags，后全线修复）
+- [x] 所有 9 个工作流统一改用 Docker `node:20-slim`，彻底消除 setup-node 依赖
 
 ### 项目结构（最新）
 
