@@ -129,34 +129,12 @@ layout: post
   return filename;
 }
 
-// 更新 manifest.json（调用 crawl-cnblogs.mjs --fix-manifest）
+// 更新 manifest.json
+// 注意：此函数需要在 CommonJS 环境下运行，或改用 fetch 调用 R2 API
+// 建议：在工作流中单独调用 crawl-cnblogs.mjs --fix-manifest
 async function updateManifest() {
-  console.log('[generate-article] 开始更新 manifest.json...');
-  
-  return new Promise((resolve, reject) => {
-    const { exec } = require('child_process');
-    const path = require('path');
-    
-    // 获取当前脚本所在目录
-    const scriptDir = __dirname;
-    const fixManifestScript = path.join(scriptDir, 'crawl-cnblogs.mjs');
-    
-    console.log(`[generate-article] 调用 ${fixManifestScript} --fix-manifest`);
-    
-    exec(`node "${fixManifestScript}" --fix-manifest`, {
-      env: process.env
-    }, (error, stdout, stderr) => {
-      if (error) {
-        console.error('[generate-article] 更新 manifest.json 失败：', error.message);
-        console.error('[generate-article] stderr:', stderr);
-        reject(error);
-      } else {
-        console.log('[generate-article] ✅ manifest.json 已更新');
-        console.log(stdout);
-        resolve();
-      }
-    });
-  });
+  console.log('[generate-article] ⚠️  updateManifest() 需要在工作流中单独调用 crawl-cnblogs.mjs --fix-manifest');
+  console.log('[generate-article] 跳过 manifest.json 更新，请在下一步执行');
 }
 
 // 主函数
@@ -179,9 +157,11 @@ async function main() {
     console.log(`[generate-article] 标题：《${title}》`);
     
     await uploadToR2(title, content);
-    await updateManifest();
+    // manifest.json 更新由工作流单独步骤完成
+    // await updateManifest();
     
     console.log('[generate-article] ✅ 完成！');
+    console.log('[generate-article] 提示：请接下来运行 crawl-cnblogs.mjs --fix-manifest 更新 manifest.json');
   } catch (err) {
     console.error('[generate-article] 错误：', err.message);
     process.exit(1);
