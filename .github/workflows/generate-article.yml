@@ -45,11 +45,6 @@ jobs:
           R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
           R2_BLOG_BUCKET: songdaochuanshu-static
       
-      - name: Create workflow result JSON
-        if: always()
-        run: |
-          echo '{"success": ${{ steps.generate.outcome == 'success' }}, "workflow": "generate-article", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > workflow-result.json
-      
       - name: Send email notification
         if: always()
         run: node utils/email-notifier.mjs
@@ -58,3 +53,11 @@ jobs:
           NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
           WORKFLOW_NAME: generate-article
           WORKFLOW_STATUS: ${{ job.status }}
+
+      - name: Upload workflow result as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: workflow-result
+          path: workflow-result.json
+          retention-days: 7
