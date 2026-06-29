@@ -41,7 +41,7 @@ function extractArticleLinks(html) {
   return Array.from(matches);
 }
 
-// 从文章页提取标题和内容
+// 从文章页提取标题、内容和原始发布日期
 async function fetchArticle(url) {
   const html = await fetchHtml(url);
   
@@ -51,14 +51,55 @@ async function fetchArticle(url) {
   // 去掉 " - 博客园" 或 " - 用户名 - 博客园"
   title = title.replace(/\s*-\s*[^-\s]+\s*-\s*博客园$/, '').replace(/\s*-\s*博客园$/, '').trim();
   
+  // 提取文章原始发布日期（博客园页面有多个可能位置）
+  let publishDate = '';
+  // 方式1: <span id="post-date">2024-01-01 12:00</span>
+  const dateSpanMatch = html.match(/<span id="post-date"[^>]*>([^<]+)<\/span>/i);
+  if (dateSpanMatch) {
+    publishDate = dateSpanMatch[1].trim();
+  }
+  // 方式2: publishDate: '2024-01-01T12:00:00'
+  if (!publishDate) {
+    const pdMatch = html.match(/publishDate:\s*['"]([^'"]+)['"]/i);
+    if (pdMatch) publishDate = pdMatch[1].trim();
+  }
+  // 方式3: 页面 meta 标签
+  if (!publishDate) {
+    const metaMatch = html.match(/<meta\s+property="article:published_time"\s+content="([^"]+)"/i);
+    if (metaMatch) publishDate = metaMatch[1].trim();
+  }
+  // 默认：使用爬取时间
+  if (!publishDate) {
+    publishDate = new Date().toISOString();
+  } else {
+    // 标准化日期格式为 ISO 8601
+    try {
+      publishDate = new Date(publishDate).toISOString();
+    } catch(e) {
+      publishDate = new Date().toISOString();
+    }
+  }
+  
   // 提取文章内容（HTML）
   const bodyMatch = html.match(/<div id="cnblogs_post_body"[^>]*>([\s\S]*?)<\/div>/i);
   const contentHtml = bodyMatch ? bodyMatch[1] : '<p>内容获取失败</p>';
   
-  // 转 Markdown（简单处理）
-  const markdown = `# ${title}\n\n> 原文：[${title}](${url})\n> 来源：博客园推荐文章\n> 爬取时间：${new Date().toISOString()}\n\n${contentHtml}`;
+  // 生成 Markdown（带 YAML frontmatter 存储标题和原始日期）
+  const markdown = `---
+title: ${title}
+publishDate: ${publishDate}
+source: ${url}
+---
+
+# ${title}
+
+> 原文：[${title}](${url})
+> 来源：博客园推荐文章
+> 发布时间：${publishDate}
+
+${contentHtml}`;
   
-  return { title, markdown, url };
+  return { title, markdown, url, publishDate };
 }
 
 // 从 R2 获取现有文章标题（用于去重）
@@ -68,12 +109,12 @@ async function getExistingTitles() {
   const titles = new Set();
   for (const obj of response.Contents || []) {
     if (obj.Key.endsWith('.md')) {
-      // 读取文件内容，提取标题
       try {
         const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: obj.Key });
         const { Body } = await s3.send(getCmd);
         const content = await Body.transformToString();
-        const titleMatch = content.match(/^# (.+)$/m);
+        // 从 frontmatter 提取标题
+        const titleMatch = content.match(/^title:\s*(.+)$/m);
         if (titleMatch) titles.add(titleMatch[1].trim());
       } catch (e) {
         // 忽略读取错误
@@ -83,9 +124,16 @@ async function getExistingTitles() {
   return titles;
 }
 
-// 上传到 R2
-async function uploadToR2(title, content) {
-  const filename = `blog/cnblogs-${Date.now()}.md`;
+// 上传到 R2（文件名使用时间戳确保唯一）
+async function uploadToR2(title, content, publishDate) {
+  // 使用发布日期的时间戳（如果可用），否则使用当前时间
+  let timestamp;
+  try {
+    timestamp = new Date(publishDate).getTime();
+  } catch(e) {
+    timestamp = Date.now();
+  }
+  const filename = `blog/cnblogs-${timestamp}.md`;
   const command = new PutObjectCommand({
     Bucket: R2_BUCKET,
     Key: filename,
@@ -119,10 +167,12 @@ async function main() {
   
   // 4. 找一篇不重复的文章
   let targetUrl = null;
+  let targetTitle = null;
   for (const url of links) {
     const { title } = await fetchArticle(url);
     if (!existingTitles.has(title)) {
       targetUrl = url;
+      targetTitle = title;
       console.log(`[crawl-cnblogs] 找到新文章：《${title}》`);
       break;
     } else {
@@ -136,8 +186,8 @@ async function main() {
   }
   
   // 5. 获取内容并上传
-  const { title, markdown } = await fetchArticle(targetUrl);
-  const key = await uploadToR2(title, markdown);
+  const { title, markdown, publishDate } = await fetchArticle(targetUrl);
+  const key = await uploadToR2(title, markdown, publishDate);
   console.log(`[crawl-cnblogs] ✅ 上传成功：${key}`);
   
   // 6. 更新 manifest.json
@@ -149,6 +199,8 @@ main().catch(err => {
   console.error('[crawl-cnblogs] 错误：', err.message);
   process.exit(1);
 });
+
+// 更新 manifest.json（从 frontmatter 读取标题和日期）
 async function updateManifest() {
   console.log('[crawl-cnblogs] 开始更新 manifest.json...');
   
@@ -160,18 +212,28 @@ async function updateManifest() {
   for (const obj of response.Contents || []) {
     if (!obj.Key.endsWith('.md')) continue;
     
-    // 读取文章标题
+    // 读取文章标题和日期（从 frontmatter）
     try {
       const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: obj.Key });
       const { Body } = await s3.send(getCmd);
       const content = await Body.transformToString();
       
-      const titleMatch = content.match(/^# (.+)$/m);
-      const title = titleMatch ? titleMatch[1].trim() : obj.Key;
+      // 从 YAML frontmatter 提取（--- 包裹的头部）
+      const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
+      let title = '未知标题';
+      let date = new Date().toISOString();
       
-      // 获取文章日期（从文件名或内容）
-      const dateMatch = obj.Key.match(/cnblogs-(\d+)/);
-      const date = dateMatch ? new Date(parseInt(dateMatch[1])).toISOString() : new Date().toISOString();
+      if (fmMatch) {
+        const fm = fmMatch[1];
+        const titleM = fm.match(/^title:\s*(.+)$/m);
+        const dateM = fm.match(/^publishDate:\s*(.+)$/m);
+        if (titleM) title = titleM[1].trim();
+        if (dateM) date = dateM[1].trim();
+      } else {
+        // 兼容没有 frontmatter 的旧文件
+        const titleM = content.match(/^# (.+)$/m);
+        if (titleM) title = titleM[1].trim();
+      }
       
       posts.push({
         path: `/p/${obj.Key}`,
