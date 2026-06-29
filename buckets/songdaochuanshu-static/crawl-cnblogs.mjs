@@ -2,7 +2,7 @@
 // 爬取博客园首页推荐文章，去重后上传到 R2 songdaochuanshu-static 桶
 
 import https from 'https';
-import { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 
 // R2 配置
 const R2_ENDPOINT = `https://${process.env.CF_ACCOUNT_ID}.r2.cloudflarestorage.com`;
@@ -156,17 +156,27 @@ async function updateManifest() {
   for (const obj of response.Contents || []) {
     if (!obj.Key.endsWith('.md')) continue;
     
-    // 读取文章标题和日期（从 frontmatter）
+    // 2. 获取文件元数据（LastModified）
+    let lastModified = new Date();
+    try {
+      const headCmd = new HeadObjectCommand({ Bucket: R2_BUCKET, Key: obj.Key });
+      const headData = await s3.send(headCmd);
+      lastModified = headData.LastModified || new Date();
+    } catch (e) {
+      console.error(`[crawl-cnblogs] 获取 ${obj.Key} 元数据失败：`, e.message);
+    }
+    
+    // 3. 读取文章标题和日期（从 frontmatter 或内容）
     try {
       const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: obj.Key });
       const { Body } = await s3.send(getCmd);
       const content = await Body.transformToString();
       
-      // 从 YAML frontmatter 提取（--- 包裹的头部）
-      const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
       let title = '未知标题';
-      let date = new Date().toISOString();
+      let date = lastModified.toISOString();
       
+      // 方式1: 从 YAML frontmatter 提取（新文章）
+      const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
       if (fmMatch) {
         const fm = fmMatch[1];
         const titleM = fm.match(/^title:\s*(.+)$/m);
@@ -174,9 +184,15 @@ async function updateManifest() {
         if (titleM) title = titleM[1].trim();
         if (dateM) date = dateM[1].trim();
       } else {
-        // 兼容没有 frontmatter 的旧文件
-        const titleM = content.match(/^# (.+)$/m);
+        // 方式2: 从内容提取（旧文章）
+        // 提取标题（# 标题，可能前面有空白）
+        const titleM = content.match(/^\s*#\s+(.+)$/m);
         if (titleM) title = titleM[1].trim();
+        
+        // 提取日期（> 爬取时间：... 或 > 发布时间：...）
+        const dateM = content.match(/(?:爬取|发布)时间：\s*([\dTZ:-]+)/i)
+                    || content.match(/\*\*\s*发布时间：\s*\*\*\s*([\dTZ:-]+)/i);
+        if (dateM) date = dateM[1].trim();
       }
       
       posts.push({
@@ -194,7 +210,7 @@ async function updateManifest() {
     }
   }
   
-  // 2. 生成 manifest.json（兼容现有格式）
+  // 4. 生成 manifest.json（兼容现有格式）
   const manifest = {
     version: '1.0',
     generatedAt: new Date().toISOString(),
@@ -204,7 +220,7 @@ async function updateManifest() {
   
   const manifestContent = JSON.stringify(manifest, null, 2);
   
-  // 3. 上传到 R2
+  // 5. 上传到 R2
   const putCmd = new PutObjectCommand({
     Bucket: R2_BUCKET,
     Key: 'manifest.json',
