@@ -39,7 +39,7 @@ function generateArticle(topic) {
     console.log(`[generate-article] 开始生成文章：《${topic}》`);
     
     // 优化后的 Prompt：让 AI 模仿真人博主
-    const prompt = `你是一位叫"宋道传书"的技术博主，写了 10 年博客。请用你的真实口吻写一篇关于"${topic}"的文章。
+    const prompt = `你是一位叫"松岛川树"的技术博主，写了 10 年博客。请用你的真实口吻写一篇关于"${topic}"的文章。
 
 写作要求：
 - 像在和朋友聊天，口语化，可以用"其实"、"说实话"、"我觉着"
