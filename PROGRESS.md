@@ -72,6 +72,9 @@
 - [x] 从博客园话题自动提取分类和标签
 - [x] 隐藏 AI 生成痕迹，优化 Prompt 减少 AI 味儿
 - [x] 智谱 AI 判断标题广告和相似度，替代关键词规则
+- [x] 用 AI 生成分类标签替代正则硬切（理解文章内容而非从标题切词）
+- [x] crawl-cnblogs 爬取后自动 AI 分类标签写入 frontmatter
+- [x] fix-manifest-tags 支持修复 R2 中已有文章的 frontmatter（不仅更新 manifest）
 
 **工作流配置**
 - [x] `crawl-cnblogs.yml` — 博客爬取（定时 + 手动，支持模式选择）
