@@ -9,15 +9,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - run: npm install @aws-sdk/client-s3
-
       - name: Fix manifest categories and tags
-        run: node buckets/songdaochuanshu-static/fix-manifest-tags.mjs
+        run: |
+          docker run \
+            --rm \
+            -e CF_ACCOUNT_ID \
+            -e R2_KEY_ID \
+            -e R2_SECRET_KEY \
+            -e R2_BLOG_BUCKET \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
+            node:20-slim \
+            bash -c "npm install @aws-sdk/client-s3 && node buckets/songdaochuanshu-static/fix-manifest-tags.mjs"
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
