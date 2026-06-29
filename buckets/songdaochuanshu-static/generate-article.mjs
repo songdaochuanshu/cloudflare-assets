@@ -2,6 +2,7 @@
 // 使用智谱 AI GLM-4-Flash 生成原创文章，上传到 R2
 
 import https from 'https';
+import { writeFileSync } from 'fs';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { removeAISlop } from '../../utils/anti-slop.mjs';
 
@@ -159,13 +160,36 @@ async function main() {
     
     // 去除 AI 味
     console.log('[generate-article] 🎯 去除 AI 味...');
-    content = removeAISlop(content);
+    const antiSlopResult = removeAISlop(content);
+    content = antiSlopResult.content;
+    const readabilityScore = antiSlopResult.score || 70;
+    const avgLen = antiSlopResult.avgLen || 100;
     
     await uploadToR2(title, content);
     // manifest.json 由工作流单独更新
     
+    // 生成结果摘要文件（供邮件通知使用）
+    const summary = {
+      success: true,
+      workflow: 'generate-article',
+      timestamp: new Date().toISOString(),
+      stats: {
+        title: title,
+        wordCount: content.length,
+        readabilityScore: readabilityScore,
+        avgParagraphLen: avgLen
+      },
+      details: [{
+        topic: topic,
+        r2Key: `blog/${new Date().toISOString().split('T')[0]}-*.md`,
+        status: '上传成功'
+      }]
+    };
+    
+    writeFileSync('workflow-result.json', JSON.stringify(summary, null, 2));
+    console.log('[generate-article] 📋 结果摘要已生成');
+    
     console.log('[generate-article] ✅ 完成！');
-    console.log('[generate-article] 提示：接下来请运行 crawl-cnblogs.mjs --fix-manifest 更新 manifest.json');
   } catch (err) {
     console.error('[generate-article] 错误：', err.message);
     process.exit(1);
