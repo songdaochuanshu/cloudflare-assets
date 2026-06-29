@@ -139,9 +139,74 @@ async function main() {
   const { title, markdown } = await fetchArticle(targetUrl);
   const key = await uploadToR2(title, markdown);
   console.log(`[crawl-cnblogs] ✅ 上传成功：${key}`);
+  
+  // 6. 更新 manifest.json
+  await updateManifest();
+  console.log('[crawl-cnblogs] ✅ manifest.json 已更新');
 }
 
 main().catch(err => {
   console.error('[crawl-cnblogs] 错误：', err.message);
   process.exit(1);
+}
+
+// 更新 manifest.json
+async function updateManifest() {
+  console.log('[crawl-cnblogs] 开始更新 manifest.json...');
+  
+  // 1. 获取所有文章
+  const listCmd = new ListObjectsV2Command({ Bucket: R2_BUCKET, Prefix: 'blog/', MaxKeys: 1000 });
+  const response = await s3.send(listCmd);
+  
+  const posts = [];
+  for (const obj of response.Contents || []) {
+    if (!obj.Key.endsWith('.md')) continue;
+    
+    // 读取文章标题
+    try {
+      const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: obj.Key });
+      const { Body } = await s3.send(getCmd);
+      const content = await Body.transformToString();
+      
+      const titleMatch = content.match(/^# (.+)$/m);
+      const title = titleMatch ? titleMatch[1].trim() : obj.Key;
+      
+      // 获取文章日期（从文件名或内容）
+      const dateMatch = obj.Key.match(/cnblogs-(\d+)/);
+      const date = dateMatch ? new Date(parseInt(dateMatch[1])).toISOString() : new Date().toISOString();
+      
+      posts.push({
+        path: `/p/${obj.Key}`,
+        key: obj.Key,
+        category: 'blog',
+        title: title,
+        date: date,
+        description: '',
+        tags: [],
+        layout: 'post'
+      });
+    } catch (e) {
+      console.error(`[crawl-cnblogs] 读取 ${obj.Key} 失败：`, e.message);
+    }
+  }
+  
+  // 2. 生成 manifest.json（兼容现有格式）
+  const manifest = {
+    version: '1.0',
+    generatedAt: new Date().toISOString(),
+    total: posts.length,
+    posts: posts.sort((a, b) => new Date(b.date) - new Date(a.date))
+  };
+  
+  const manifestContent = JSON.stringify(manifest, null, 2);
+  
+  // 3. 上传到 R2
+  const putCmd = new PutObjectCommand({
+    Bucket: R2_BUCKET,
+    Key: 'manifest.json',
+    Body: manifestContent,
+    ContentType: 'application/json; charset=utf-8',
+  });
+  await s3.send(putCmd);
+  console.log(`[crawl-cnblogs] manifest.json 已更新（${posts.length} 篇文章）`);
 });
