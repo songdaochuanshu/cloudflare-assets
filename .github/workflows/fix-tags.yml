@@ -1,4 +1,4 @@
-name: Fix Manifest Tags
+name: Fix Tags
 
 on:
   workflow_dispatch:
