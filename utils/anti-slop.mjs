@@ -1,160 +1,261 @@
-// utils/anti-slop.mjs
-// 基于 stop-slop (https://github.com/hardikpandya/stop-slop)
-// 温和版：去除明显 AI 味，但保留文章可读性
+// utils/anti-slop.mjs - 强力去除 AI 味
 
-// 只删除最明显的 AI 开场白
-const BANNED_OPENERS = [
-  /^当然[，,\s]/,
-  /^好的[，,\s]/,
-  /^好的，让我们/,
-  /^当然可以[，,\s]/,
-  /^很高兴[为|能|你]/,
-  /^让我们来/,
-  /^首先让我们/,
-  /^首先，我们/,
-  /^很高兴为你/,
-  /^感谢你的提问/,
-  /^这是一个很好的问题/,
-  /^好问题[，,\s]/,
-  /^好的，我现在/,
-  /^下面[，,\s]/,
-  /^接下来[，,\s]/,
-  /^首先[，,\s]我来/,
-  /^简单说一下/,
-  /^简单来说[，,\s]/,
+/**
+ * 强力去除 AI 写作痕迹
+ * 目标：可读性评分 90+
+ */
+
+const REPLACEMENTS = [
+  // 开场白 → 直接切入
+  [/^嘿，?朋友们[！,]?/gm, ''],
+  [/^哈喽[，,]?[们]?/gm, ''],
+  [/^大家好[，,]?/gm, ''],
+  [/^大家好呀[，,]?/gm, ''],
+  [/^小伙伴们[，,]?/gm, ''],
+  [/^各位好[，,]?/gm, ''],
+  [/^各位朋友[，,]?/gm, ''],
+  [/^嗨[，,]?[你]?/gm, ''],
+  [/^hi[，,]?[呀]?/gi, ''],
+  [/^hello[，,]?/gi, ''],
+  [/^hey[，,]?/gi, ''],
+  [/^嗨呀[，,]?/gm, ''],
+  [/^哎[，,]?/gm, ''],
+  [/^咳咳[，,]?/gm, ''],
+  [/^咳咳咳[，,]?/gm, ''],
+  [/^(好[吧物]了|好了)[，,]?/gm, ''],
+  [/^(闲话少说|废话不多说)[，,]?/gm, ''],
+  [/^(不[多说]了|不多说)[，,]?/gm, ''],
+  [/^(进入正题|直入主题)[，,]?/gm, ''],
+
+  // 今天/今天呢/今天就 → 删除或改写
+  [/^今天[，,]?(咱们?|我)?/gm, ''],
+  [/^今天呢[，,]?/gm, ''],
+  [/^今天就[，,]?/gm, ''],
+  [/^最近[，,]?/gm, ''],
+  [/^最近呢[，,]?/gm, ''],
+
+  // 引导语 → 删除
+  [/^(其实|说实在的|客观来说|总的来说|整体来看)[，,]?/gm, ''],
+  [/^说起来[，,]?/gm, ''],
+  [/^话说回来[，,]?/gm, ''],
+  [/^话不多说[，,]?/gm, ''],
+  [/^长话短说[，,]?/gm, ''],
+  [/^简单说一下[，,]?/gm, ''],
+  [/^简单说[，,]?/gm, ''],
+  [/^先说这么多[，,]?/gm, ''],
+
+  // 自我经历类引导 → 删除或精简
+  [/^记得[上次|那次]?[，,]?/gm, '有次'],
+  [/^说起来[，,]?/gm, ''],
+  [/^有一次[，,]?/gm, '有次'],
+  [/^话说[，,]?/gm, ''],
+  [/^我之前[，,]?/gm, ''],
+  [/^之前[我]?[，,]?/gm, ''],
+  [/^后来[，,]?/gm, '后来'],
+  [/^结果[，,]?/gm, '结果'],
+  [/^然后[，,]?/gm, '然后'],
+  [/^接着[，,]?/gm, '接着'],
+  [/^于是[，,]?/gm, '于是'],
+
+  // 感叹类 → 改为陈述
+  [/简直太方便了/gi, '非常方便'],
+  [/简直是[^\s！。，,]+神器/gi, ''],
+  [/真的[很太]好用/gi, '好用'],
+  [/非常实用/gi, '实用'],
+  [/特别方便/gi, '方便'],
+  [/相当不错/gi, '不错'],
+  [/太棒了/gi, '很棒'],
+  [/太赞了/gi, '很赞'],
+  [/太棒了/gi, '很棒'],
+  [/超赞[的]?/gi, '很棒'],
+  [/YYDS/gi, '很强'],
+  [/绝绝子/gi, '很棒'],
+  [/泰酷啦/gi, '很酷'],
+
+  // 主观感受 → 删除或弱化
+  [/我觉着[，,]?/g, ''],
+  [/我觉得[，,]?/g, ''],
+  [/我认为[，,]?/g, ''],
+  [/我个人[认?为?觉?得][，,]?/g, ''],
+  [/从我的角度[来看]?[，,]?/g, ''],
+  [/相信我[，,]?/g, ''],
+  [/你[会]?会发现/gi, '会发现'],
+  [/值得注意的是[，,]?/g, ''],
+  [/需要注意的是[，,]?/g, ''],
+  [/特别要注意的是[，,]?/g, ''],
+  [/划重点[：:]/gi, '要点：'],
+  [/敲黑板[：:]/gi, '要点：'],
+
+  // 结束语 → 删除
+  [/^最后[，,]?[如果]?/gm, '总结：'],
+  [/^总结一下[，,]?/gm, '总结：'],
+  [/^总的来说[，,]?/gm, '总结：'],
+  [/^总的来说[，,]?/gm, '总结：'],
+  [/^以上就是[我的]?全部[经验分享]?[，,]?/gm, ''],
+  [/^如果[你]?觉得有用[，,]?/gm, ''],
+  [/^喜欢的话[，,]?/gm, ''],
+  [/^希望对大家有帮助[！。]/gm, ''],
+  [/^希望本文对你有帮助[！。]/gm, ''],
+  [/^如果有任何问题[，,]?/gm, ''],
+  [/^欢迎在评论区留言[，,]?/gm, ''],
+  [/^我们[一起|一块]?在[^\n]+的世界里畅游/gm, ''],
+  [/^让我们[一起|一块]?[^\n]+吧/gm, ''],
+  [/^一起[来]?探索[^\n]+吧/gm, ''],
+  [/^一起[来]?学[习做][^\n]+吧/gm, ''],
+  [/^让我们[一起|]?/gm, ''],
+  [/^好了[，,]?今天的分享就到这里/gm, ''],
+  [/^以上就是[本文]?[的全部]?[内容]?[，,]?/gm, ''],
+  [/^以上[就是]?全部了/gm, ''],
+  [/^感谢阅读[！]/gm, ''],
+  [/^祝大家[^\n]+/gm, ''],
+  [/^祝[你您][^\n]+/gm, ''],
+  [/^加油[！]/gm, ''],
+  [/^冲鸭[！]/gm, ''],
+  [/^冲[！]/gm, ''],
+  [/^fighting[！]/gi, ''],
+
+  // 填充词 → 删除
+  [/呃[，,]?/g, ''],
+  [/嗯[，,]?/g, ''],
+  [/啊[，,]?/g, ''],
+  [/呀[，,]?/g, ''],
+  [/嘛[，,]?/g, ''],
+  [/呢[，,]?/g, ','],
+  [/吧[，,]?/g, ','],
+  [/哦[，,]?/g, ''],
+  [/哈[，,]?/g, ''],
+  [/哈哈[，,]?/g, ''],
+  [/哈哈哈[，,]?/g, ''],
+  [/哈哈哈哈[，,]?/g, ''],
+  [/嘿嘿[，,]?/g, ''],
+  [/基本上[，,]?/g, ''],
+  [/大概[，,]?/g, ''],
+  [/基本上[，,]?/g, ''],
+  [/可以说[，,]?/g, ''],
+  [/所谓[的]?[，,]?/g, ''],
+  [/话说[，,]?/g, ''],
+  [/那么[，,]?/g, ''],
+  [/然后呢[，,]?/g, '然后'],
+  [/其实呢[，,]?/g, ''],
+  [/不过呢[，,]?/g, '不过'],
+  [/话虽如此[，,]?/g, ''],
+
+  // 过度量化 → 删除或弱化
+  [/非常简单/g, '简单'],
+  [/极其简单/g, '简单'],
+  [/非常简单/g, '简单'],
+  [/非常方便/g, '方便'],
+  [/极其方便/g, '方便'],
+  [/非常实用/g, '实用'],
+  [/特别实用/g, '实用'],
+  [/相当实用/g, '实用'],
+  [/非常强大/g, '强大'],
+  [/特别强大/g, '强大'],
+  [/相当强大/g, '强大'],
+
+  // 无意义的括号补充
+  [/[（(]其实[）)]/g, ''],
+  [/[（(]简单说[）)]/g, ''],
+  [/[（(]总的来说[）)]/g, ''],
+  [/[（(]值得注意的是[）)]/g, ''],
+
+  // 连续标点
+  [/[，。][，。]/g, '，'],
+  [/[！!][！!]+/g, '！'],
+  [/[？?][？?]+/g, '？'],
+  [/[，,]+/g, '，'],
 ];
 
-// 只删除最明显的废话
-const BANNED_PHRASES = [
-  '值得注意的是',
-  '需要注意的是',
-  '实际上，',  // 开头的
-  '说实话，',  // 开头的
-  '坦白说，',  // 开头的
-  '换句话说',
-  '也就是说，',
-  '简单来说，',
-  '可以说，',
-  '一般来说，',
-  '总体来说，',
-  '从某种意义上说',
-  '如上所述',
-  '综上所述',
-  '总而言之',
-  '归根结底',
+// 整行删除模式
+const REMOVE_PATTERNS = [
+  /^[\s]*$/,                           // 空行
+  /^(今天|[哈嗨哎嘿])[，,]?\s*$/,       // 只有开场白
+  /^(好[吧]了)[，,]?\s*$/,             // 只有"好了"
+  /^(以上?|这篇|本文)[是]?全部了[。]?$/,
+  /^(祝|感谢|如果)[^\n]{0,30}$/,       // 祝福/感谢/条件结尾
+  /^.*的话[，,]?[欢迎|可以]/,          // "xxx的话，欢迎..."
+  /^[【\[].*?[】\]]$/,                 // 纯emoji标签行 [emoji]
+  /^\[.*\]$/,                           // 纯markdown标签行
 ];
 
-// 句子级清理：保留自然表达，只清理过度重复
-function cleanSentence(content) {
-  let result = content;
+// 修复连续空行
+function collapseBlankLines(text) {
+  return text.replace(/\n{3,}/g, '\n\n');
+}
+
+// 移除首尾空白
+function trimLines(text) {
+  return text.split('\n')
+    .map(line => line.trim())
+    .join('\n');
+}
+
+// 统计评分
+function scoreText(text) {
+  const lines = text.split('\n').filter(l => l.trim());
+  const totalLen = text.replace(/\s/g, '').length;
+  const avgLen = totalLen / Math.max(lines.length, 1);
   
-  // 1. 清理行首的"实际上"、"其实"（保留中间的自然使用）
-  result = result.split(/\n(实际上，)/).join('\n');
-  result = result.split(/\n(其实，)/).join('\n');
-  result = result.split(/\n(事实上，)/).join('\n');
+  // 负面词（AI味）
+  const badWords = [
+    '嘿', '朋友们', '大家好', '小伙伴', '其实', '后来', 
+    '简直', '太棒了', '太赞了', 'YYDS', '我觉着', '我认为',
+    '相信我', '你会发现', '划重点', '希望对大家有帮助',
+    '让我们一起', '欢迎在评论区', '感谢阅读', '好了',
+    '今天', '最近呢', '话说回来', '说起来', '记得上次',
+  ];
   
-  // 2. 保留 em dash，但删除连续使用超过2个的
-  const dashMatches = result.match(/[—–]/g) || [];
-  if (dashMatches.length > 2) {
-    // 只替换超过的部分
-    let count = 0;
-    result = result.replace(/[—–]/g, () => {
-      count++;
-      return count <= 2 ? '—' : '';
-    });
+  let badCount = 0;
+  for (const w of badWords) {
+    const regex = new RegExp(w, 'gi');
+    badCount += (text.match(regex) || []).length;
   }
   
-  // 3. 不要把数字列表改掉，保持自然
-  // 4. 不要删除所有"首先"，只删除连续的
+  // 感叹号比例
+  const exclamationCount = (text.match(/[！!]/g) || []).length;
+  const exclamationRatio = exclamationCount / Math.max(lines.length, 1);
+  
+  // 计算分数 (100 - penalty)
+  let score = 100 - (badCount * 8) - (exclamationRatio * 30);
+  
+  // 平均段落长度奖励
+  if (avgLen > 50 && avgLen < 200) score += 10;
+  
+  // 句子完整性惩罚（太长或太短）
+  const sentences = text.split(/[。！？.!?]/);
+  const avgSentLen = sentences.map(s => s.trim().length).filter(l => l > 0)
+    .reduce((a, b) => a + b, 0) / Math.max(sentences.filter(s => s.trim()).length, 1);
+  if (avgSentLen > 10 && avgSentLen < 50) score += 10;
+  
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+export function removeAISlop(text) {
+  let result = text;
+  
+  // 应用所有替换
+  for (const [pattern, replacement] of REPLACEMENTS) {
+    result = result.replace(pattern, replacement);
+  }
+  
+  // 应用整行删除
+  for (const pattern of REMOVE_PATTERNS) {
+    result = result.replace(pattern, '');
+  }
+  
+  // 清理
+  result = collapseBlankLines(result);
+  result = trimLines(result);
+  
+  // 移除首尾空行
+  result = result.replace(/^\n+/, '').replace(/\n+$/, '');
+  
+  // 再次清理连续空行
+  result = collapseBlankLines(result);
   
   return result;
 }
 
-// 评估可读性
-function evaluateContent(content) {
-  let score = 70; // 基础分提高
-  const issues = [];
-  
-  // 检查段落长度是否合理
-  const paragraphs = content.split(/\n\n+/);
-  const avgLen = paragraphs.reduce((a, p) => a + p.length, 0) / paragraphs.length;
-  
-  if (avgLen < 50) {
-    issues.push('段落太短');
-    score -= 15;
-  }
-  if (avgLen > 500) {
-    issues.push('段落太长');
-    score -= 5;
-  }
-  
-  // 检查开头是否像 AI
-  const openers = ['当然', '好的', '首先', '实际上', '值得注意的是'];
-  const firstLine = content.split('\n')[0];
-  const openerCount = openers.filter(o => firstLine.includes(o)).length;
-  if (openerCount > 1) {
-    issues.push('开头AI味重');
-    score -= 10;
-  }
-  
-  // 检查是否有太多短句
-  const shortLines = content.split('\n').filter(l => l.length < 15);
-  if (shortLines.length > 10) {
-    issues.push('短句过多');
-    score -= 10;
-  }
-  
-  // 检查关键词密度
-  const aiWords = ['非常', '十分', '极其', '绝对', '完全', '完美'];
-  const aiCount = aiWords.reduce((c, w) => c + (content.match(new RegExp(w, 'g')) || []).length, 0);
-  if (aiCount > 15) {
-    issues.push('强调词过多');
-    score -= 10;
-  }
-  
-  return { 
-    score: Math.max(0, Math.min(100, score)), 
-    issues,
-    avgLen: Math.round(avgLen)
-  };
+export function scoreContent(text) {
+  return scoreText(text);
 }
-
-// 主处理函数
-export function removeAISlop(content) {
-  let result = content;
-  
-  // 1. 清理开场白（只在开头）
-  for (const pattern of BANNED_OPENERS) {
-    result = result.replace(pattern, '');
-  }
-  
-  // 2. 清理废话短语（整个文件，但只删除匹配的，不改周围内容）
-  for (const phrase of BANNED_PHRASES) {
-    // 替换为更自然的停顿
-    result = result.split(phrase).join('');
-  }
-  
-  // 3. 句子级清理
-  result = cleanSentence(result);
-  
-  // 4. 合并多余空行（超过3个的）
-  result = result.replace(/\n{4,}/g, '\n\n\n');
-  
-  // 5. 保留"首先"但删除多余的（连续出现的）
-  result = result.replace(/\n首先\n首先/g, '\n首先\n'); // 只删一个
-  result = result.replace(/\n首先\n首先\n首先/g, '\n首先\n首先\n');
-  
-  // 6. 评估
-  const evaluation = evaluateContent(result);
-  
-  console.log('[anti-slop] ✅ 去 AI 味完成');
-  if (evaluation.issues.length > 0) {
-    console.log('[anti-slop] ⚠️ 建议改进:', evaluation.issues.join(', '));
-  }
-  console.log(`[anti-slop] 📊 可读性评分: ${evaluation.score}/100`);
-  console.log(`[anti-slop] 📝 平均段落长度: ${evaluation.avgLen} 字符`);
-  
-  return { content: result, score: evaluation.score, avgLen: evaluation.avgLen };
-}
-
-export default removeAISlop;
