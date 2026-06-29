@@ -1,0 +1,37 @@
+name: Generate Article
+
+on:
+  schedule:
+    - cron: '0 4 * * *'  # 每天北京时间 12:00（UTC 4:00）
+  workflow_dispatch:        # 支持手动触发
+    inputs:
+      topic:
+        description: '文章主题（留空则随机）'
+        required: false
+        default: ''
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: npm install @aws-sdk/client-s3
+      
+      - name: Generate article
+        run: |
+          if [ -z "${{ github.event.inputs.topic }}" ]; then
+            node buckets/songdaochuanshu-static/generate-article.mjs
+          else
+            node buckets/songdaochuanshu-static/generate-article.mjs "${{ github.event.inputs.topic }}"
+          fi
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          R2_BLOG_BUCKET: songdaochuanshu-static
+          ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
