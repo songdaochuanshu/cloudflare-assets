@@ -1,9 +1,9 @@
 // buckets/songdaochuanshu-static/generate-article.mjs
-// 使用智谱 AI GLM-4-Flash 生成原创文章，上传到 R2
+// 从博客园抓取标题 → 智谱 AI 生成文章 → 上传到 R2
 
 import https from 'https';
 import { writeFileSync } from 'fs';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { removeAISlop } from '../../utils/anti-slop.mjs';
 
 // R2 配置
@@ -23,24 +23,122 @@ const s3 = new S3Client({
 const ZHIPU_API_KEY = process.env.ZHIPU_API_KEY;
 const ZHIPU_MODEL = 'glm-4-flash';
 
-// 文章主题列表
-const TOPICS = [
-  'Cloudflare Workers 实战教程',
-  '前端性能优化技巧',
-  'GitHub Actions CI/CD 最佳实践',
-  'Rust 语言入门指南',
-  'Docker 容器化部署',
-  '个人博客搭建经验',
-  '开源项目维护心得',
-  '技术博客写作技巧',
-];
+// ──────────────────────────────────────────────
+// 博客园标题抓取
+// ──────────────────────────────────────────────
+function fetchHtml(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => resolve(data));
+    }).on('error', reject);
+  });
+}
 
-// 调用智谱 AI 生成文章（优化 Prompt，减少 AI 味儿）
+// 从博客园 Atom RSS 提取文章标题
+async function fetchCnblogsTitles(count = 30) {
+  const xml = await fetchHtml('https://feed.cnblogs.com/blog/sitehome/rss');
+  
+  // Atom feed: <entry>...<title type="text">标题</title>...</entry>
+  const entries = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)];
+  const titles = new Set();
+  
+  for (const entry of entries) {
+    const m = entry[1].match(/<title type="text">([^<]+)<\/title>/);
+    if (!m) continue;
+    let title = m[1].trim();
+    // 去掉 " - 作者名" 后缀
+    title = title.replace(/\s*-\s*[^-\s]+$/, '').trim();
+    if (title.length >= 6 && title.length <= 60) titles.add(title);
+    if (titles.size >= count) break;
+  }
+  
+  console.log(`[generate-article] 从博客园获取 ${titles.size} 个标题`);
+  return Array.from(titles);
+}
+
+// 从 manifest.json 获取已用标题
+async function getUsedTitles() {
+  try {
+    const cmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: 'manifest.json' });
+    const { Body } = await s3.send(cmd);
+    const content = await Body.transformToString();
+    const manifest = JSON.parse(content);
+    const titles = (manifest.posts || []).map(p => p.title || '');
+    console.log(`[generate-article] manifest 已用 ${titles.length} 个标题`);
+    return titles;
+  } catch (e) {
+    console.log('[generate-article] manifest.json 未找到，视为空白');
+    return [];
+  }
+}
+
+// 关键词重叠相似度（过滤含相同关键词的标题）
+function isSimilar(a, b) {
+  if (!a || !b) return false;
+  // 提取中文词（2+字符）
+  const wordsA = new Set(a.match(/[\u4e00-\u9fa5]{2,}/g) || []);
+  const wordsB = new Set(b.match(/[\u4e00-\u9fa5]{2,}/g) || []);
+  // 英文词
+  const enA = new Set(a.match(/[a-zA-Z]{3,}/g) || []);
+  const enB = new Set(b.match(/[a-zA-Z]{3,}/g) || []);
+  
+  // 中文中相同词数
+  let cnOverlap = 0;
+  for (const w of wordsA) if (wordsB.has(w)) cnOverlap++;
+  
+  // 英文中相同词数
+  let enOverlap = 0;
+  for (const w of enA) if (enB.has(w)) enOverlap++;
+  
+  // 阈值：中文2+重叠 或 英文1+重叠
+  return cnOverlap >= 2 || enOverlap >= 1;
+}
+
+// 选取一个未使用、不相似的标题
+async function pickUnusedTopic() {
+  const [cnTitles, usedTitles] = await Promise.all([
+    fetchCnblogsTitles(30),
+    getUsedTitles(),
+  ]);
+  
+  if (cnTitles.length === 0) {
+    throw new Error('博客园未获取到任何标题');
+  }
+  
+  // 过滤
+  const available = cnTitles.filter(t => {
+    // 1. 不能完全相同
+    if (usedTitles.some(u => u === t)) {
+      console.log(`[generate-article] 跳过（已用）: ${t}`);
+      return false;
+    }
+    // 2. 不能太相似
+    if (usedTitles.some(u => isSimilar(u, t))) {
+      console.log(`[generate-article] 跳过（相似）: ${t}`);
+      return false;
+    }
+    return true;
+  });
+  
+  if (available.length === 0) {
+    throw new Error('博客园标题全部已用或相似，请先更新列表');
+  }
+  
+  // 随机选一个
+  const topic = available[Math.floor(Math.random() * available.length)];
+  console.log(`[generate-article] 选中标题: ${topic}`);
+  return topic;
+}
+
+// ──────────────────────────────────────────────
+// 智谱 AI 生成
+// ──────────────────────────────────────────────
 function generateArticle(topic) {
   return new Promise((resolve, reject) => {
     console.log(`[generate-article] 开始生成文章：《${topic}》`);
     
-    // 优化后的 Prompt：让 AI 模仿真人博主（不要提名字，避免尴尬）
     const prompt = `你是一位技术博主，写了 10 年博客。请用你的真实口吻写一篇关于"${topic}"的文章。
 
 写作要求：
@@ -55,10 +153,8 @@ function generateArticle(topic) {
     
     const payload = JSON.stringify({
       model: ZHIPU_MODEL,
-      messages: [
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.9,  // 提高随机性
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.9,
       max_tokens: 2500,
     });
     
@@ -104,19 +200,19 @@ function extractTitle(content) {
   return match ? match[1].trim() : '无标题';
 }
 
-// 上传到 R2（文件名用日期+标题 slug，不暴露 AI 生成）
-async function uploadToR2(title, content) {
-  const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-  const slug = title
+// 上传到 R2
+async function uploadToR2(topic, content) {
+  const date = new Date().toISOString().split('T')[0];
+  const slug = topic
     .toLowerCase()
-    .replace(/[^\w一-龥]+/g, '-') // 保留中文和英文，其他换成 -
-    .replace(/^[-]+|[-]+$/g, '') // 去掉首尾的 -
-    .substring(0, 50); // 限制长度
+    .replace(/[^\w一-龥]+/g, '-')
+    .replace(/^[-]+|[-]+$/g, '')
+    .substring(0, 50);
   
   const filename = `blog/${date}-${slug}.md`;
   
   const frontmatter = `---
-title: ${title}
+title: ${topic}
 date: ${new Date().toISOString()}
 source: AI 生成（智谱 GLM-4-Flash）
 tags: []
@@ -139,56 +235,48 @@ layout: post
   return filename;
 }
 
+// ──────────────────────────────────────────────
 // 主函数
+// ──────────────────────────────────────────────
 async function main() {
-  let topic = process.argv[2];
-  if (!topic) {
-    topic = TOPICS[Math.floor(Math.random() * TOPICS.length)];
-  }
-  
-  console.log(`[generate-article] 主题：${topic}`);
-  
   if (!ZHIPU_API_KEY) {
     console.error('[generate-article] 错误：未设置 ZHIPU_API_KEY');
     process.exit(1);
   }
   
   try {
+    // 自动从博客园选取标题（过滤已用/相似）
+    const topic = await pickUnusedTopic();
+    console.log(`[generate-article] 主题：${topic}`);
+    
     let content = await generateArticle(topic);
-    const title = extractTitle(content);
-    console.log(`[generate-article] 标题：《${title}》`);
     
     // 去除 AI 味
     console.log('[generate-article] 🎯 去除 AI 味...');
-    const antiSlopResult = removeAISlop(content);
-    content = antiSlopResult.content;
-    const readabilityScore = antiSlopResult.score || 70;
-    const avgLen = antiSlopResult.avgLen || 100;
+    const { content: cleanContent, score, avgLen } = removeAISlop(content);
     
-    await uploadToR2(title, content);
-    // manifest.json 由工作流单独更新
+    await uploadToR2(topic, cleanContent);
     
-    // 生成结果摘要文件（供邮件通知使用）
+    // 生成结果摘要
     const summary = {
       success: true,
       workflow: 'generate-article',
       timestamp: new Date().toISOString(),
       stats: {
-        title: title,
-        wordCount: content.length,
-        readabilityScore: readabilityScore,
-        avgParagraphLen: avgLen
+        title: topic,
+        wordCount: cleanContent.length,
+        readabilityScore: score || 0,
+        avgParagraphLen: avgLen || 0,
       },
       details: [{
         topic: topic,
-        r2Key: `blog/${new Date().toISOString().split('T')[0]}-*.md`,
-        status: '上传成功'
-      }]
+        r2Key: `blog/${new Date().toISOString().split('T')[0]}-${topic}.md`,
+        status: '上传成功',
+      }],
     };
     
     writeFileSync('workflow-result.json', JSON.stringify(summary, null, 2));
     console.log('[generate-article] 📋 结果摘要已生成');
-    
     console.log('[generate-article] ✅ 完成！');
   } catch (err) {
     console.error('[generate-article] 错误：', err.message);
