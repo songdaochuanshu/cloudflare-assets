@@ -93,11 +93,10 @@ source: ${url}
 
 # ${title}
 
-> 原文：[${title}](${url})
-> 来源：博客园推荐文章
-> 发布时间：${publishDate}
+${contentHtml}
 
-${contentHtml}`;
+---
+> 原文链接：${url}`;
   
   return { title, markdown, url, publishDate };
 }
@@ -189,8 +188,9 @@ async function updateManifest() {
         const titleM = content.match(/^\s*#\s+(.+)$/m);
         if (titleM) title = titleM[1].trim();
         
-        // 提取日期（> 爬取时间：... 或 > 发布时间：...）
-        const dateM = content.match(/(?:爬取|发布)时间：\s*([\dTZ:-]+)/i)
+        // 提取日期（> 原文链接：... 或 > 发布时间：...）
+        const dateM = content.match(/>\s*原文链接：\s*https?:\/\/[^\s]+/i)
+                    || content.match(/(?:发布|爬取)时间：\s*([\dTZ:-]+)/i)
                     || content.match(/\*\*\s*发布时间：\s*\*\*\s*([\dTZ:-]+)/i);
         if (dateM) date = dateM[1].trim();
       }
