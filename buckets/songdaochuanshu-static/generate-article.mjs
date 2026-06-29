@@ -1,8 +1,9 @@
 // buckets/songdaochuanshu-static/generate-article.mjs
-// 使用智谱 AI GLM-4.7-Flash 生成原创文章，上传到 R2
+// 使用智谱 AI GLM-4-Flash 生成原创文章，上传到 R2
 
 import https from 'https';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { Readable } from 'stream';
 
 // R2 配置
 const R2_ENDPOINT = `https://${process.env.CF_ACCOUNT_ID}.r2.cloudflarestorage.com`;
@@ -19,7 +20,6 @@ const s3 = new S3Client({
 
 // 智谱 AI 配置
 const ZHIPU_API_KEY = process.env.ZHIPU_API_KEY;
-const ZHIPU_API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 const ZHIPU_MODEL = 'glm-4-flash'; // 免费模型
 
 // 文章主题列表（可扩展）
@@ -35,10 +35,11 @@ const TOPICS = [
 ];
 
 // 调用智谱 AI 生成文章
-async function generateArticle(topic) {
-  console.log(`[generate-article] 开始生成文章：《${topic}》`);
-  
-  const prompt = `请写一篇关于"${topic}"的技术文章，要求：
+function generateArticle(topic) {
+  return new Promise((resolve, reject) => {
+    console.log(`[generate-article] 开始生成文章：《${topic}》`);
+    
+    const prompt = `请写一篇关于"${topic}"的技术文章，要求：
 1. 原创度高，有个人见解
 2. 结构清晰（引言、正文、总结）
 3. 字数 1000-1500 字
@@ -47,17 +48,16 @@ async function generateArticle(topic) {
 6. 输出格式：Markdown
 
 直接输出文章内容，不要加任何解释或前缀。`;
-  
-  const payload = JSON.stringify({
-    model: ZHIPU_MODEL,
-    messages: [
-      { role: 'user', content: prompt }
-    ],
-    temperature: 0.7,
-    max_tokens: 2000,
-  });
-  
-  return new Promise((resolve, reject) => {
+    
+    const payload = JSON.stringify({
+      model: ZHIPU_MODEL,
+      messages: [
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 2000,
+    });
+    
     const options = {
       hostname: 'open.bigmodel.cn',
       path: '/api/paas/v4/chat/completions',
@@ -96,7 +96,6 @@ async function generateArticle(topic) {
 
 // 从文章内容提取标题
 function extractTitle(content) {
-  // 从第一个 # 标题提取
   const match = content.match(/^#\s+(.+)$/m);
   return match ? match[1].trim() : '无标题';
 }
@@ -106,7 +105,6 @@ async function uploadToR2(title, content) {
   const timestamp = Date.now();
   const filename = `blog/ai-${timestamp}.md`;
   
-  // 添加 YAML frontmatter
   const frontmatter = `---
 title: ${title}
 date: ${new Date().toISOString()}
@@ -131,28 +129,75 @@ layout: post
   return filename;
 }
 
-// 更新 manifest.json
+// 更新 manifest.json（简化版）
 async function updateManifest() {
   console.log('[generate-article] 开始更新 manifest.json...');
   
-  // 复用 crawl-cnblogs.mjs 的 updateManifest 逻辑
-  // （这里简单实现，实际应该抽取为公共函数）
-  const { exec } = require('child_process');
-  const util = require('util');
-  const execPromise = util.promisify(exec);
-  
   try {
-    // 调用 crawl-cnblogs.mjs --fix-manifest
-    await execPromise('node buckets/songdaochuanshu-static/crawl-cnblogs.mjs --fix-manifest');
-    console.log('[generate-article] ✅ manifest.json 已更新');
+    // 获取所有 blog/ 下的 .md 文件
+    const listCmd = new ListObjectsV2Command({ Bucket: R2_BUCKET, Prefix: 'blog/', MaxKeys: 1000 });
+    const response = await s3.send(listCmd);
+    
+    const posts = [];
+    for (const obj of response.Contents || []) {
+      if (!obj.Key.endsWith('.md')) continue;
+      
+      try {
+        const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: obj.Key });
+        const { Body } = await s3.send(getCmd);
+        const content = await streamToString(Body);
+        
+        const titleMatch = content.match(/^title:\s*(.+)$/m);
+        const dateMatch = content.match(/^date:\s*(.+)$/m);
+        
+        posts.push({
+          title: titleMatch ? titleMatch[1].trim() : '无标题',
+          date: dateMatch ? dateMatch[1].trim() : new Date().toISOString(),
+          url: obj.Key,
+        });
+      } catch (e) {
+        console.error(`[generate-article] 读取 ${obj.Key} 失败：`, e.message);
+      }
+    }
+    
+    // 按日期排序
+    posts.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    // 生成 manifest.json
+    const manifest = {
+      posts: posts.map(p => ({
+        title: p.title,
+        url: p.url,
+        date: p.date,
+      })),
+    };
+    
+    const putCmd = new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: 'manifest.json',
+      Body: JSON.stringify(manifest, null, 2),
+      ContentType: 'application/json; charset=utf-8',
+    });
+    
+    await s3.send(putCmd);
+    console.log(`[generate-article] ✅ manifest.json 已更新（${posts.length} 篇文章）`);
   } catch (err) {
     console.error('[generate-article] 更新 manifest.json 失败：', err.message);
   }
 }
 
+// 辅助函数：stream 转 string
+function streamToString(stream) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    stream.on('data', chunk => chunks.push(chunk));
+    stream.on('error', reject);
+    stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+  });
+}
+
 // 主函数
 async function main() {
-  // 1. 选择主题（从命令行参数或随机）
   let topic = process.argv[2];
   if (!topic) {
     topic = TOPICS[Math.floor(Math.random() * TOPICS.length)];
@@ -160,29 +205,24 @@ async function main() {
   
   console.log(`[generate-article] 主题：${topic}`);
   
-  // 2. 检查 API Key
   if (!ZHIPU_API_KEY) {
     console.error('[generate-article] 错误：未设置 ZHIPU_API_KEY');
     process.exit(1);
   }
   
-  // 3. 生成文章
-  const content = await generateArticle(topic);
-  
-  // 4. 提取标题
-  const title = extractTitle(content);
-  console.log(`[generate-article] 标题：《${title}》`);
-  
-  // 5. 上传到 R2
-  const key = await uploadToR2(title, content);
-  
-  // 6. 更新 manifest.json
-  await updateManifest();
-  
-  console.log('[generate-article] ✅ 完成！');
+  try {
+    const content = await generateArticle(topic);
+    const title = extractTitle(content);
+    console.log(`[generate-article] 标题：《${title}》`);
+    
+    await uploadToR2(title, content);
+    await updateManifest();
+    
+    console.log('[generate-article] ✅ 完成！');
+  } catch (err) {
+    console.error('[generate-article] 错误：', err.message);
+    process.exit(1);
+  }
 }
 
-main().catch(err => {
-  console.error('[generate-article] 错误：', err.message);
-  process.exit(1);
-});
+main();
