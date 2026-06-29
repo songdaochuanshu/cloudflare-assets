@@ -191,7 +191,10 @@ async function pickUnusedTopic() {
     throw new Error('博客园未获取到任何标题');
   }
 
-  const result = await askAIForTitle(cnTitles, usedTitles.length > 0 ? usedTitles : []);
+  // 随机打乱候选池顺序，避免并行时 AI 总是选同一个
+  const shuffled = [...cnTitles].sort(() => Math.random() - 0.5);
+
+  const result = await askAIForTitle(shuffled, usedTitles.length > 0 ? usedTitles : []);
   if (!result.chosen) {
     throw new Error('博客园标题全部不合适（含广告/重复/非技术类），请稍后重试');
   }
