@@ -2,7 +2,7 @@ name: Generate Article
 
 on:
   schedule:
-    - cron: '0 4 * * *'  # 每天北京时间 12:00（UTC 4:00）
+    - cron: '0 1,7 * * *'  # 每天北京时间 9:00 和 15:00（UTC 1:00 和 7:00）
   workflow_dispatch:        # 支持手动触发
     inputs:
       topic:
@@ -23,6 +23,7 @@ jobs:
         run: npm install @aws-sdk/client-s3
       
       - name: Generate article
+        id: generate
         run: |
           if [ -z "${{ github.event.inputs.topic }}" ]; then
             node buckets/songdaochuanshu-static/generate-article.mjs
@@ -43,3 +44,17 @@ jobs:
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
           R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
           R2_BLOG_BUCKET: songdaochuanshu-static
+      
+      - name: Create workflow result JSON
+        if: always()
+        run: |
+          echo '{"success": ${{ steps.generate.outcome == 'success' }}, "workflow": "generate-article", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > workflow-result.json
+      
+      - name: Send email notification
+        if: always()
+        run: node utils/email-notifier.mjs
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+          WORKFLOW_NAME: generate-article
+          WORKFLOW_STATUS: ${{ job.status }}
