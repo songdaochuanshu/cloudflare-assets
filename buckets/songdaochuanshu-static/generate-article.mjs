@@ -71,8 +71,10 @@ function callZhipu(prompt, maxTokens = 300) {
 
 function parseJSON(raw) {
   const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) || raw.match(/^\s*(\{[\s\S]*\})/);
-  const jsonStr = jsonMatch ? jsonMatch[1] : raw;
-  return JSON.parse(jsonStr.trim());
+  let jsonStr = jsonMatch ? jsonMatch[1] : raw;
+  // 兜底：如果还有 ``` 残留，去掉
+  jsonStr = jsonStr.replace(/^```(?:json)?\s*/,'').replace(/```\s*$/,'').trim();
+  return JSON.parse(jsonStr);
 }
 
 // ──────────────────────────────────────────────
