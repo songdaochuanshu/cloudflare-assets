@@ -3,6 +3,7 @@
 
 import https from 'https';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { removeAISlop } from '../../utils/anti-slop.mjs';
 
 // R2 配置
 const R2_ENDPOINT = `https://${process.env.CF_ACCOUNT_ID}.r2.cloudflarestorage.com`;
@@ -152,9 +153,13 @@ async function main() {
   }
   
   try {
-    const content = await generateArticle(topic);
+    let content = await generateArticle(topic);
     const title = extractTitle(content);
     console.log(`[generate-article] 标题：《${title}》`);
+    
+    // 去除 AI 味
+    console.log('[generate-article] 🎯 去除 AI 味...');
+    content = removeAISlop(content);
     
     await uploadToR2(title, content);
     // manifest.json 由工作流单独更新
