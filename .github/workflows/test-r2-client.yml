@@ -1,0 +1,28 @@
+name: Test r2-client
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run list-prefixes (read-only)
+        run: node r2/list-prefixes.mjs
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          R2_HOMEPAGE_BUCKET: ${{ secrets.R2_HOMEPAGE_BUCKET }}
+      - name: Test module integrity
+        run: |
+          node --check r2/r2-client.mjs
+          echo "r2-client.mjs OK"
+          for f in r2/crawl-lolicon.mjs r2/update-images-info.mjs r2/delete-images.mjs r2/delete-non-lolicon.mjs r2/list-prefixes.mjs; do
+            node --check "$f" && echo "$f OK"
+          done
