@@ -38,8 +38,8 @@ function generateArticle(topic) {
   return new Promise((resolve, reject) => {
     console.log(`[generate-article] 开始生成文章：《${topic}》`);
     
-    // 优化后的 Prompt：让 AI 模仿真人博主
-    const prompt = `你是一位叫"松岛川树"的技术博主，写了 10 年博客。请用你的真实口吻写一篇关于"${topic}"的文章。
+    // 优化后的 Prompt：让 AI 模仿真人博主（不要提名字，避免尴尬）
+    const prompt = `你是一位技术博主，写了 10 年博客。请用你的真实口吻写一篇关于"${topic}"的文章。
 
 写作要求：
 - 像在和朋友聊天，口语化，可以用"其实"、"说实话"、"我觉着"
@@ -102,10 +102,16 @@ function extractTitle(content) {
   return match ? match[1].trim() : '无标题';
 }
 
-// 上传到 R2
+// 上传到 R2（文件名用日期+标题 slug，不暴露 AI 生成）
 async function uploadToR2(title, content) {
-  const timestamp = Date.now();
-  const filename = `blog/ai-${timestamp}.md`;
+  const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const slug = title
+    .toLowerCase()
+    .replace(/[^\w一-龥]+/g, '-') // 保留中文和英文，其他换成 -
+    .replace(/^[-]+|[-]+$/g, '') // 去掉首尾的 -
+    .substring(0, 50); // 限制长度
+  
+  const filename = `blog/${date}-${slug}.md`;
   
   const frontmatter = `---
 title: ${title}
