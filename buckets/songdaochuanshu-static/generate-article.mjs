@@ -255,7 +255,7 @@ function extractTitle(content) {
 }
 
 // 上传到 R2
-async function uploadToR2(topic, content) {
+async function uploadToR2(topic, content, category, tags) {
   const date = new Date().toISOString().split('T')[0];
   const slug = topic
     .toLowerCase()
@@ -269,7 +269,8 @@ async function uploadToR2(topic, content) {
 title: ${topic}
 date: ${new Date().toISOString()}
 source: AI 生成（智谱 GLM-4-Flash）
-tags: []
+category: ${category}
+tags: ${JSON.stringify(tags)}
 layout: post
 ---
 
@@ -287,6 +288,89 @@ layout: post
   await s3.send(command);
   console.log(`[generate-article] ✅ 上传成功：${filename}`);
   return filename;
+}
+
+// ──────────────────────────────────────────────
+// 分类 & 标签提取
+// ──────────────────────────────────────────────
+
+const CATEGORY_MAP = {
+  python: 'Python', javascript: 'JavaScript', typescript: 'TypeScript',
+  rust: 'Rust', golang: 'Go', java: 'Java', c: 'C/C++',
+  react: '前端', vue: '前端', angular: '前端', html: '前端', css: '前端',
+  nodejs: 'Node.js', node: 'Node.js',
+  docker: 'DevOps', kubernetes: 'DevOps', k8s: 'DevOps', linux: 'DevOps', nginx: 'DevOps',
+  git: 'DevTools', github: 'DevTools', vscode: 'DevTools', vim: 'DevTools',
+  mysql: '数据库', postgresql: '数据库', mongodb: '数据库', redis: '数据库', sql: '数据库',
+  api: '后端', rest: '后端', graphql: '后端', grpc: '后端',
+  ai: 'AI', 'machine learning': 'AI', 'deep learning': 'AI', llm: 'AI',
+  chatgpt: 'AI', openai: 'AI', gemini: 'AI',
+  security: '安全', https: '安全', oauth: '安全',
+  cloudflare: '云计算', aws: '云计算', azure: '云计算', gcp: '云计算',
+  fastapi: 'Python', django: 'Python', flask: 'Python',
+  spring: 'Java', springboot: 'Java',
+  performance: '性能优化', optimization: '性能优化', cache: '性能优化',
+  testing: '测试', ci: 'DevOps', cd: 'DevOps', cicd: 'DevOps',
+  'hello github': '开源', 'hellogithub': '开源',
+};
+
+function topicToCategory(topic) {
+  const lower = topic.toLowerCase();
+  for (const [kw, cat] of Object.entries(CATEGORY_MAP)) {
+    if (lower.includes(kw)) return cat;
+  }
+  return '技术'; // 默认
+}
+
+function topicToTags(topic) {
+  const lower = topic.toLowerCase();
+  const tags = new Set();
+  for (const [kw, cat] of Object.entries(CATEGORY_MAP)) {
+    if (lower.includes(kw)) {
+      tags.add(cat);
+      tags.add(kw.replace(/[A-Z]/g, m => m).replace(/^./, s => s.toUpperCase()).replace(/([A-Z])/g, ' $1').trim());
+    }
+  }
+  // 从标题提取 2-3 个中文关键词作为额外标签
+  const cnWords = (topic.match(/[\u4e00-\u9fa5]{2,4}/g) || []).slice(0, 2);
+  cnWords.forEach(w => tags.add(w));
+  return Array.from(tags).slice(0, 5);
+}
+
+// ──────────────────────────────────────────────
+// manifest 更新
+// ──────────────────────────────────────────────
+async function updateManifest(post) {
+  try {
+    let manifest = { version: '1.0', generatedAt: '', total: 0, posts: [] };
+    try {
+      const cmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: 'manifest.json' });
+      const { Body } = await s3.send(cmd);
+      const raw = await Body.transformToString();
+      manifest = JSON.parse(raw);
+    } catch (_) {
+      // manifest 不存在，正常
+    }
+
+    // 避免重复
+    if (!manifest.posts.some(p => p.title === post.title)) {
+      manifest.posts.unshift(post);
+      manifest.total = manifest.posts.length;
+      manifest.generatedAt = new Date().toISOString();
+    }
+
+    const body = JSON.stringify(manifest, null, 2);
+    const cmd2 = new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: 'manifest.json',
+      Body: body,
+      ContentType: 'application/json',
+    });
+    await s3.send(cmd2);
+    console.log('[generate-article] ✅ manifest.json 已更新');
+  } catch (e) {
+    console.error('[generate-article] manifest 更新失败:', e.message);
+  }
 }
 
 // ──────────────────────────────────────────────
@@ -309,7 +393,27 @@ async function main() {
     console.log('[generate-article] 🎯 去除 AI 味...');
     const { content: cleanContent, score, avgLen } = removeAISlop(content);
     
-    await uploadToR2(topic, cleanContent);
+    // 提取分类和标签
+    const category = topicToCategory(topic);
+    const tags = topicToTags(topic);
+    console.log(`[generate-article] 分类: ${category} | 标签: ${JSON.stringify(tags)}`);
+
+    const filename = await uploadToR2(topic, cleanContent, category, tags);
+
+    // 更新 manifest（包含分类和标签）
+    const date = new Date().toISOString().split('T')[0];
+    const slug = topic.toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-').replace(/^[-]+|[-]+$/g, '').substring(0, 50);
+    const r2Key = `blog/${date}-${slug}.md`;
+    await updateManifest({
+      path: `/${r2Key}`,
+      key: r2Key,
+      title: topic,
+      date: new Date().toISOString(),
+      category,
+      tags,
+      layout: 'post',
+      description: cleanContent.replace(/[#*`]/g, '').substring(0, 120) + '...',
+    });
     
     // 生成结果摘要
     const summary = {
@@ -318,13 +422,17 @@ async function main() {
       timestamp: new Date().toISOString(),
       stats: {
         title: topic,
+        category,
+        tags,
         wordCount: cleanContent.length,
         readabilityScore: score || 0,
         avgParagraphLen: avgLen || 0,
       },
       details: [{
         topic: topic,
-        r2Key: `blog/${new Date().toISOString().split('T')[0]}-${topic}.md`,
+        category,
+        tags,
+        r2Key,
         status: '上传成功',
       }],
     };
