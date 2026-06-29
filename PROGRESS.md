@@ -36,11 +36,13 @@
   - `images-info.json` — 根目录，按分类组织
 - 爬虫每天运行 5 次（北京时间 09/13/17/21/01 时），每次 5 分钟
 - 元数据每天更新一次（北京时间 08:00）
+- 博客系统已上线：博客园爬取 → AI 生成 → 自动发布到 R2
 
 ### 待办
 
 - [x] 抽取 R2 签名为公共模块 —— 新建 r2/r2-client.mjs，5 个脚本改用 import
   - [x] 通过 GitHub Actions 真实环境验证（Update Images Info #12 ✅）
+- [x] songdaochuanshu-static 桶博客系统开发
 - [ ] CDN 配置管理（cdn/ 目录）
 - [ ] Workers 脚本（workers/ 目录）
 - [ ] 为其他工作流添加邮件通知（update-images-info、delete-images 等）
@@ -50,30 +52,62 @@
 
 ### 完成
 
+**目录重构**
 - [x] 按桶重构目录结构：新建 `buckets/` 目录，按 R2 桶名分子目录
   - `buckets/homepage-bg/` — homepage-bg 桶（图片）脚本
-  - `buckets/songdaochuanshu-static/` — songdaochuanshu-static 桶（博客文章，待开发）
+  - `buckets/songdaochuanshu-static/` — songdaochuanshu-static 桶（博客文章）
   - `r2/r2-client.mjs` — 共享模块保持不变，脚本改用 `../../r2/r2-client.mjs` 导入
   - 更新 `.github/workflows/crawl.yml`、`update-images-info.yml`、`delete.yml` 中的脚本路径
+- [x] 清理 r2/ 目录，迁移剩余脚本到对应桶目录
+
+**博客系统（songdaochuanshu-static 桶）**
+- [x] 博客园推荐文章爬虫（`crawl-cnblogs.mjs`）— 从 RSS 抓取标题，AI 生成文章
+- [x] AI 文章生成（`generate-article.mjs`）— 智谱 GLM-4-Flash，自动发布到 R2
+- [x] 反 AI 废话模块（`utils/anti-slop.mjs`）— 60+ 规则检测，目标评分 90+
+- [x] manifest.json 自动维护 — 爬取/生成后自动更新文章列表
+- [x] 博客清理工具（`cleanup-blog.mjs`）— 清空文章 + manifest
+- [x] 批量删除工具：`delete-all-posts.mjs`、`delete-first-posts.mjs`、`delete-old-posts.mjs`
+- [x] 历史文章标签修复（`fix-manifest-tags.mjs`）— 为旧文章补充分类标签
+- [x] 工作流支持多模式：crawl / fix_manifest / clean_articles
+- [x] 从博客园话题自动提取分类和标签
+- [x] 隐藏 AI 生成痕迹，优化 Prompt 减少 AI 味儿
+- [x] 智谱 AI 判断标题广告和相似度，替代关键词规则
+
+**工作流配置**
+- [x] `crawl-cnblogs.yml` — 博客爬取（定时 + 手动，支持模式选择）
+- [x] `generate-article.yml` — AI 文章生成（定时 + 手动）
+- [x] `cleanup-blog.yml` — 清空博客
+- [x] `delete-all-posts.yml` / `delete-first-posts.yml` / `delete-old-posts.yml`
+- [x] `fix-manifest-tags.yml` — 标签修复
+- [x] 改用 Docker `node:20-slim` 避免 `setup-node@v4` 失败
 
 ### 项目结构（最新）
 
 ```
 cloudflare-assets/
 ├── r2/
-│   └── r2-client.mjs            # 共享 R2 客户端（签名 + 上传，所有桶共用）
-├── buckets/                     # 按 R2 桶分目录
-│   ├── homepage-bg/             # homepage-bg 桶（图片）
+│   └── r2-client.mjs                    # 共享 R2 客户端（签名 + 上传，所有桶共用）
+├── buckets/
+│   ├── homepage-bg/                     # homepage-bg 桶（图片）
 │   │   ├── crawl-lolicon.mjs
 │   │   ├── update-images-info.mjs
 │   │   ├── delete-images.mjs
 │   │   ├── delete-non-lolicon.mjs
 │   │   └── list-prefixes.mjs
-│   └── songdaochuanshu-static/ # songdaochuanshu-static 桶（博客文章，待开发）
-│       └── (待添加爬虫脚本)
+│   └── songdaochuanshu-static/          # songdaochuanshu-static 桶（博客文章）
+│       ├── crawl-cnblogs.mjs            # 博客园 RSS 爬虫
+│       ├── generate-article.mjs         # AI 文章生成（智谱 GLM-4-Flash）
+│       ├── cleanup-blog.mjs             # 清空博客
+│       ├── fix-manifest-tags.mjs        # 历史标签修复
+│       ├── delete-all-posts.mjs
+│       ├── delete-first-posts.mjs
+│       ├── delete-old-posts.mjs
+│       └── delete-old-posts.yml
 ├── utils/
-│   └── email-notifier.mjs       # 通用邮件通知组件（Resend）
-├── cdn/                         # CDN 配置（待开发）
-├── workers/                     # Cloudflare Workers（待开发）
-└── .github/workflows/          # GitHub Actions 定时任务
+│   ├── anti-slop.mjs                    # 反 AI 废话模块（60+ 规则）
+│   ├── email-notifier.mjs               # 通用邮件通知（Resend）
+│   └── send-email.mjs
+├── cdn/                                 # CDN 配置（待开发）
+├── workers/                             # Cloudflare Workers（待开发）
+└── .github/workflows/                   # GitHub Actions（10 个工作流）
 ```
