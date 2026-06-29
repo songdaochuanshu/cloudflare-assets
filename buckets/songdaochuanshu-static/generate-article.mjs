@@ -108,18 +108,27 @@ async function fetchCnblogsTitles(count = 30) {
   return Array.from(titles);
 }
 
-// 从 manifest.json 获取已用标题
+// 从 R2 桶直接获取已用标题（比 manifest 更实时，并行跑也不会重复）
 async function getUsedTitles() {
   try {
-    const cmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: 'manifest.json' });
-    const { Body } = await s3.send(cmd);
-    const content = await Body.transformToString();
-    const manifest = JSON.parse(content);
-    const titles = (manifest.posts || []).map(p => p.title || '');
-    console.log(`[generate-article] manifest 已用 ${titles.length} 个标题`);
+    const { ListObjectsV2Command, GetObjectCommand } = await import('@aws-sdk/client-s3');
+    const listCmd = new ListObjectsV2Command({ Bucket: R2_BUCKET, Prefix: 'blog/', MaxKeys: 1000 });
+    const { Contents } = await s3.send(listCmd);
+    const titles = [];
+    for (const obj of Contents || []) {
+      if (!obj.Key.endsWith('.md')) continue;
+      try {
+        const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: obj.Key });
+        const { Body } = await s3.send(getCmd);
+        const content = await Body.transformToString();
+        const titleM = content.match(/^title:\s*(.+)$/m);
+        if (titleM) titles.push(titleM[1].trim());
+      } catch (_) {}
+    }
+    console.log(`[generate-article] R2 已有 ${titles.length} 篇文章`);
     return titles;
   } catch (e) {
-    console.log('[generate-article] manifest.json 未找到，视为空白');
+    console.log('[generate-article] R2 读取失败，视为空白');
     return [];
   }
 }
@@ -157,7 +166,21 @@ ${cnTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
   return parseJSON(raw);
 }
 
-// 选取一个未使用、不相似、无广告的标题
+// 检查 R2 中是否已有该标题的文章
+async function r2FileExists(topic) {
+  const date = new Date().toISOString().split('T')[0];
+  const slug = topic.toLowerCase().replace(/[^\w一-龥]+/g, '-').replace(/^[-]+|[-]+$/g, '').substring(0, 50);
+  const filename = `blog/${date}-${slug}.md`;
+  try {
+    const { HeadObjectCommand } = await import('@aws-sdk/client-s3');
+    await s3.send(new HeadObjectCommand({ Bucket: R2_BUCKET, Key: filename }));
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+// 选取一个未使用、不相似、无广告的标题（如果 R2 已有则自动换下一个）
 async function pickUnusedTopic() {
   const [cnTitles, usedTitles] = await Promise.all([
     fetchCnblogsTitles(30),
@@ -168,26 +191,24 @@ async function pickUnusedTopic() {
     throw new Error('博客园未获取到任何标题');
   }
 
-  if (usedTitles.length === 0) {
-    const { chosen } = await askAIForTitle(cnTitles, []);
-    if (!chosen) throw new Error('博客园标题全部不合适（含广告或非技术类），请稍后重试');
-    console.log(`[generate-article] 选中标题: ${chosen}`);
-    return chosen;
-  }
-
-  const result = await askAIForTitle(cnTitles, usedTitles);
+  const result = await askAIForTitle(cnTitles, usedTitles.length > 0 ? usedTitles : []);
   if (!result.chosen) {
     throw new Error('博客园标题全部不合适（含广告/重复/非技术类），请稍后重试');
   }
 
-  if (result.rejected && result.rejected.length > 0) {
-    result.rejected.slice(0, 5).forEach(r => {
-      console.log(`[generate-article] 跳过（${r.reason}）: ${r.title}`);
-    });
+  // 按优先级排列：AI 选中的 + 被拒绝中可用的备选
+  const candidates = [result.chosen, ...(result.rejected || []).map(r => r.title)];
+
+  for (const title of candidates) {
+    if (await r2FileExists(title)) {
+      console.log(`[generate-article] 跳过（R2 已存在）：${title}`);
+      continue;
+    }
+    console.log(`[generate-article] 选中标题: ${title}`);
+    return title;
   }
 
-  console.log(`[generate-article] 选中标题: ${result.chosen}`);
-  return result.chosen;
+  throw new Error('所有候选标题在 R2 中都已存在，请稍后重试');
 }
 
 // ──────────────────────────────────────────────
