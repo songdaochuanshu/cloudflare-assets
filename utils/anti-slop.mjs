@@ -154,7 +154,7 @@ export function removeAISlop(content) {
   console.log(`[anti-slop] 📊 可读性评分: ${evaluation.score}/100`);
   console.log(`[anti-slop] 📝 平均段落长度: ${evaluation.avgLen} 字符`);
   
-  return result;
+  return { content: result, score: evaluation.score, avgLen: evaluation.avgLen };
 }
 
 export default removeAISlop;
