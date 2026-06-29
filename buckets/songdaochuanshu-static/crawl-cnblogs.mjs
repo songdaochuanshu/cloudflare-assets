@@ -17,7 +17,97 @@ const s3 = new S3Client({
   },
 });
 
+// 智谱 AI 配置
+const ZHIPU_API_KEY = process.env.ZHIPU_API_KEY;
+const ZHIPU_MODEL = 'glm-4-flash';
+
 const CNBLOGS_HOME = 'https://www.cnblogs.com/';
+
+// ──────────────────────────────────────────────
+// 通用：调用智谱 AI
+// ──────────────────────────────────────────────
+function callZhipu(prompt, maxTokens = 300) {
+  return new Promise((resolve, reject) => {
+    if (!ZHIPU_API_KEY) {
+      return reject(new Error('未设置 ZHIPU_API_KEY'));
+    }
+    const payload = JSON.stringify({
+      model: ZHIPU_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.1,
+      max_tokens: maxTokens,
+    });
+
+    const options = {
+      hostname: 'open.bigmodel.cn',
+      path: '/api/paas/v4/chat/completions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ZHIPU_API_KEY}`,
+        'Content-Length': Buffer.byteLength(payload),
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const response = JSON.parse(data);
+          if (response.choices && response.choices[0]) {
+            resolve(response.choices[0].message.content);
+          } else {
+            reject(new Error(`AI 返回格式错误：${data}`));
+          }
+        } catch (e) {
+          reject(new Error(`解析 AI 响应失败（${e.message}）：${data.substring(0, 200)}`));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+function parseJSON(raw) {
+  const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) || raw.match(/^\s*(\{[\s\S]*\})/);
+  const jsonStr = jsonMatch ? jsonMatch[1] : raw;
+  return JSON.parse(jsonStr.trim());
+}
+
+// ──────────────────────────────────────────────
+// AI 分类 & 标签
+// ──────────────────────────────────────────────
+async function askAIForCategoryAndTags(title, contentSnippet) {
+  const prompt = `你是技术博客分类专家。根据文章标题和内容片段，给出最合适的分类和标签。
+
+文章标题：${title}
+内容片段：
+${contentSnippet.substring(0, 800)}
+
+从以下分类中选择**唯一一个**最匹配的：
+AI、前端、后端、DevOps、DevTools、数据库、安全、云计算、性能优化、开源、Python、JavaScript、TypeScript、Rust、Go、Java、C/C++、Node.js、技术
+
+再给出 3-5 个标签，要求：
+- 用中文，2-4 个字
+- 是文章的核心技术主题，不是从标题硬切的词
+- 优先用技术领域词（如 Docker、微服务、CI/CD、监控、容器化）
+- 不要出现"为什么"、"如何"、"越来越"这种虚词
+
+返回纯 JSON，不要代码块：
+{"category": "分类名", "tags": ["标签1", "标签2", "标签3"]}`;
+
+  const raw = await callZhipu(prompt, 300);
+  const result = parseJSON(raw);
+  return result;
+}
+
+// ──────────────────────────────────────────────
+// 爬虫逻辑
+// ──────────────────────────────────────────────
 
 // 获取 HTML
 function fetchHtml(url) {
@@ -41,54 +131,56 @@ function extractArticleLinks(html) {
   return Array.from(matches);
 }
 
-// 从文章页提取标题、内容和原始发布日期
+// 从文章页提取标题、内容、发布日期和纯文本摘要
 async function fetchArticle(url) {
   const html = await fetchHtml(url);
   
-  // 提取标题（清理后缀）
+  // 提取标题
   const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
   let title = titleMatch ? titleMatch[1].trim() : '无标题';
-  // 去掉 " - 博客园" 或 " - 用户名 - 博客园"
   title = title.replace(/\s*-\s*[^-\s]+\s*-\s*博客园$/, '').replace(/\s*-\s*博客园$/, '').trim();
   
-  // 提取文章原始发布日期（博客园页面有多个可能位置）
+  // 提取发布日期
   let publishDate = '';
-  // 方式1: <span id="post-date">2024-01-01 12:00</span>
   const dateSpanMatch = html.match(/<span id="post-date"[^>]*>([^<]+)<\/span>/i);
-  if (dateSpanMatch) {
-    publishDate = dateSpanMatch[1].trim();
-  }
-  // 方式2: publishDate: '2024-01-01T12:00:00'
+  if (dateSpanMatch) publishDate = dateSpanMatch[1].trim();
   if (!publishDate) {
     const pdMatch = html.match(/publishDate:\s*['"]([^'"]+)['"]/i);
     if (pdMatch) publishDate = pdMatch[1].trim();
   }
-  // 方式3: 页面 meta 标签
   if (!publishDate) {
     const metaMatch = html.match(/<meta\s+property="article:published_time"\s+content="([^"]+)"/i);
     if (metaMatch) publishDate = metaMatch[1].trim();
   }
-  // 默认：使用爬取时间
-  if (!publishDate) {
-    publishDate = new Date().toISOString();
-  } else {
-    // 标准化日期格式为 ISO 8601
-    try {
-      publishDate = new Date(publishDate).toISOString();
-    } catch(e) {
-      publishDate = new Date().toISOString();
-    }
+  if (!publishDate) publishDate = new Date().toISOString();
+  else {
+    try { publishDate = new Date(publishDate).toISOString(); } catch(e) { publishDate = new Date().toISOString(); }
   }
   
   // 提取文章内容（HTML）
   const bodyMatch = html.match(/<div id="cnblogs_post_body"[^>]*>([\s\S]*?)<\/div>/i);
   const contentHtml = bodyMatch ? bodyMatch[1] : '<p>内容获取失败</p>';
   
-  // 生成 Markdown（带 YAML frontmatter 存储标题和原始日期）
-  const markdown = `---
+  // 提取纯文本摘要（用于 AI 分类）
+  const textSnippet = contentHtml
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .substring(0, 1000);
+
+  return { title, contentHtml, url, publishDate, textSnippet };
+}
+
+// 生成 Markdown 带 frontmatter
+function buildMarkdown(title, publishDate, url, contentHtml, category, tags) {
+  return `---
 title: ${title}
 publishDate: ${publishDate}
 source: ${url}
+category: ${category}
+tags: ${JSON.stringify(tags)}
+layout: post
 ---
 
 # ${title}
@@ -97,8 +189,6 @@ ${contentHtml}
 
 ---
 > 原文链接：${url}`;
-  
-  return { title, markdown, url, publishDate };
 }
 
 // 从 R2 获取现有文章标题（用于去重）
@@ -112,7 +202,6 @@ async function getExistingTitles() {
         const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: obj.Key });
         const { Body } = await s3.send(getCmd);
         const content = await Body.transformToString();
-        // 从 frontmatter 提取标题
         const titleMatch = content.match(/^title:\s*(.+)$/m);
         if (titleMatch) titles.add(titleMatch[1].trim());
       } catch (e) {
@@ -123,15 +212,10 @@ async function getExistingTitles() {
   return titles;
 }
 
-// 上传到 R2（文件名使用时间戳确保唯一）
+// 上传到 R2
 async function uploadToR2(title, content, publishDate) {
-  // 使用发布日期的时间戳（如果可用），否则使用当前时间
   let timestamp;
-  try {
-    timestamp = new Date(publishDate).getTime();
-  } catch(e) {
-    timestamp = Date.now();
-  }
+  try { timestamp = new Date(publishDate).getTime(); } catch(e) { timestamp = Date.now(); }
   const filename = `blog/cnblogs-${timestamp}.md`;
   const command = new PutObjectCommand({
     Bucket: R2_BUCKET,
@@ -143,11 +227,10 @@ async function uploadToR2(title, content, publishDate) {
   return filename;
 }
 
-// 更新 manifest.json（从 frontmatter 读取标题和日期）
+// 更新 manifest.json（从 frontmatter 读取标题、日期、分类、标签）
 async function updateManifest() {
   console.log('[crawl-cnblogs] 开始更新 manifest.json...');
   
-  // 1. 获取所有文章
   const listCmd = new ListObjectsV2Command({ Bucket: R2_BUCKET, Prefix: 'blog/', MaxKeys: 1000 });
   const response = await s3.send(listCmd);
   
@@ -155,7 +238,6 @@ async function updateManifest() {
   for (const obj of response.Contents || []) {
     if (!obj.Key.endsWith('.md')) continue;
     
-    // 2. 获取文件元数据（LastModified）
     let lastModified = new Date();
     try {
       const headCmd = new HeadObjectCommand({ Bucket: R2_BUCKET, Key: obj.Key });
@@ -165,7 +247,6 @@ async function updateManifest() {
       console.error(`[crawl-cnblogs] 获取 ${obj.Key} 元数据失败：`, e.message);
     }
     
-    // 3. 读取文章标题和日期（从 frontmatter 或内容）
     try {
       const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: obj.Key });
       const { Body } = await s3.send(getCmd);
@@ -173,36 +254,35 @@ async function updateManifest() {
       
       let title = '未知标题';
       let date = lastModified.toISOString();
+      let category = '技术';
+      let tags = [];
       
-      // 方式1: 从 YAML frontmatter 提取（新文章）
       const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
       if (fmMatch) {
         const fm = fmMatch[1];
         const titleM = fm.match(/^title:\s*(.+)$/m);
-        const dateM = fm.match(/^publishDate:\s*(.+)$/m);
+        const dateM = fm.match(/^(?:publishDate|date):\s*(.+)$/m);
+        const catM = fm.match(/^category:\s*(.+)$/m);
+        const tagsM = fm.match(/^tags:\s*(.+)$/m);
         if (titleM) title = titleM[1].trim();
         if (dateM) date = dateM[1].trim();
+        if (catM) category = catM[1].trim();
+        if (tagsM) {
+          try { tags = JSON.parse(tagsM[1].trim()); } catch(_) { tags = []; }
+        }
       } else {
-        // 方式2: 从内容提取（旧文章）
-        // 提取标题（# 标题，可能前面有空白）
         const titleM = content.match(/^\s*#\s+(.+)$/m);
         if (titleM) title = titleM[1].trim();
-        
-        // 提取日期（> 原文链接：... 或 > 发布时间：...）
-        const dateM = content.match(/>\s*原文链接：\s*https?:\/\/[^\s]+/i)
-                    || content.match(/(?:发布|爬取)时间：\s*([\dTZ:-]+)/i)
-                    || content.match(/\*\*\s*发布时间：\s*\*\*\s*([\dTZ:-]+)/i);
-        if (dateM) date = dateM[1].trim();
       }
       
       posts.push({
-        path: `/p/${obj.Key}`,
+        path: `/${obj.Key}`,
         key: obj.Key,
-        category: 'blog',
-        title: title,
-        date: date,
+        category,
+        title,
+        date,
         description: '',
-        tags: [],
+        tags,
         layout: 'post'
       });
     } catch (e) {
@@ -210,7 +290,6 @@ async function updateManifest() {
     }
   }
   
-  // 4. 生成 manifest.json（兼容现有格式）
   const manifest = {
     version: '1.0',
     generatedAt: new Date().toISOString(),
@@ -218,13 +297,10 @@ async function updateManifest() {
     posts: posts.sort((a, b) => new Date(b.date) - new Date(a.date))
   };
   
-  const manifestContent = JSON.stringify(manifest, null, 2);
-  
-  // 5. 上传到 R2
   const putCmd = new PutObjectCommand({
     Bucket: R2_BUCKET,
     Key: 'manifest.json',
-    Body: manifestContent,
+    Body: JSON.stringify(manifest, null, 2),
     ContentType: 'application/json; charset=utf-8',
   });
   await s3.send(putCmd);
@@ -235,11 +311,9 @@ async function updateManifest() {
 async function main() {
   console.log('[crawl-cnblogs] 开始爬取...');
   
-  // 1. 获取首页 HTML
   const html = await fetchHtml(CNBLOGS_HOME);
   console.log(`[crawl-cnblogs] 首页 HTML 长度：${html.length}`);
   
-  // 2. 提取文章链接
   const links = extractArticleLinks(html);
   console.log(`[crawl-cnblogs] 找到 ${links.length} 篇文章`);
   
@@ -248,18 +322,15 @@ async function main() {
     return;
   }
   
-  // 3. 获取现有文章标题（去重）
   const existingTitles = await getExistingTitles();
   console.log(`[crawl-cnblogs] R2 已有 ${existingTitles.size} 篇文章`);
   
-  // 4. 找一篇不重复的文章
+  // 找一篇不重复的文章
   let targetUrl = null;
-  let targetTitle = null;
   for (const url of links) {
     const { title } = await fetchArticle(url);
     if (!existingTitles.has(title)) {
       targetUrl = url;
-      targetTitle = title;
       console.log(`[crawl-cnblogs] 找到新文章：《${title}》`);
       break;
     } else {
@@ -272,19 +343,37 @@ async function main() {
     return;
   }
   
-  // 5. 获取内容并上传
-  const { title, markdown, publishDate } = await fetchArticle(targetUrl);
+  // 获取内容
+  const { title, contentHtml, publishDate, textSnippet } = await fetchArticle(targetUrl);
+  
+  // AI 生成分类和标签
+  let category = '技术';
+  let tags = [];
+  if (ZHIPU_API_KEY) {
+    try {
+      console.log('[crawl-cnblogs] 🏷️  AI 生成分类标签...');
+      const result = await askAIForCategoryAndTags(title, textSnippet);
+      category = result.category || '技术';
+      tags = result.tags || [];
+      console.log(`[crawl-cnblogs] AI 分类: ${category} | 标签: ${JSON.stringify(tags)}`);
+    } catch (e) {
+      console.error(`[crawl-cnblogs] AI 分类失败，使用默认：${e.message}`);
+    }
+  } else {
+    console.log('[crawl-cnblogs] ⚠️ 未设置 ZHIPU_API_KEY，跳过 AI 分类');
+  }
+  
+  // 生成 Markdown 并上传
+  const markdown = buildMarkdown(title, publishDate, targetUrl, contentHtml, category, tags);
   const key = await uploadToR2(title, markdown, publishDate);
   console.log(`[crawl-cnblogs] ✅ 上传成功：${key}`);
   
-  // 6. 更新 manifest.json
   await updateManifest();
   console.log('[crawl-cnblogs] ✅ manifest.json 已更新');
 }
 
 // 命令行参数处理
 if (process.argv.includes('--clean-articles')) {
-  // 批量清理文章的爬取痕迹
   (async () => {
     console.log('[crawl-cnblogs] --clean-articles 模式：批量清理爬取痕迹');
     try {
@@ -297,7 +386,6 @@ if (process.argv.includes('--clean-articles')) {
     }
   })();
 } else if (process.argv.includes('--fix-manifest')) {
-  // 只修复 manifest.json，不爬取新文章
   (async () => {
     console.log('[crawl-cnblogs] --fix-manifest 模式：只修复 manifest.json');
     try {
@@ -310,7 +398,6 @@ if (process.argv.includes('--clean-articles')) {
     }
   })();
 } else {
-  // 正常模式：爬取新文章
   main().catch(err => {
     console.error('[crawl-cnblogs] 错误：', err.message);
     process.exit(1);
@@ -321,7 +408,6 @@ if (process.argv.includes('--clean-articles')) {
 async function cleanArticles() {
   console.log('[crawl-cnblogs] 开始清理文章...');
   
-  // 1. 获取所有文章
   const listCmd = new ListObjectsV2Command({ Bucket: R2_BUCKET, Prefix: 'blog/', MaxKeys: 1000 });
   const response = await s3.send(listCmd);
   
@@ -329,36 +415,25 @@ async function cleanArticles() {
   for (const obj of response.Contents || []) {
     if (!obj.Key.endsWith('.md')) continue;
     
-    // 2. 读取文章内容
     try {
       const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: obj.Key });
       const { Body } = await s3.send(getCmd);
       let content = await Body.transformToString();
       
-      // 3. 移除爬取痕迹
-      // 移除：> 原文：[标题](url)
       content = content.replace(/^>\s*原文：\[[^\]]+\]\([^)]+\)\s*$/gm, '');
-      // 移除：> 来源：博客园推荐文章
       content = content.replace(/^>\s*来源：博客园推荐文章\s*$/gm, '');
-      // 移除：> 爬取时间：...
       content = content.replace(/^>\s*爬取时间：[^\s]*\s*$/gm, '');
-      // 移除多余的空行（连续 2 个以上）
       content = content.replace(/\n{3,}/g, '\n\n');
       
-      // 4. 如果文末没有原文链接，添加（从 frontmatter 的 source: 提取）
       const sourceMatch = content.match(/^source:\s*(.+)$/m);
       if (sourceMatch) {
         const sourceUrl = sourceMatch[1].trim();
-        // 检查文末是否已有原文链接
         if (!content.match(/---\s*\n>\s*原文链接：/m)) {
-          // 在 frontmatter 结束后、第一个标题前插入
           content = content.replace(/---\s*\n\n#\s/m, `---\n\n# `);
-          // 在内容末尾添加
           content = content.trimEnd() + '\n\n---\n> 原文链接：' + sourceUrl;
         }
       }
       
-      // 5. 上传回 R2
       const putCmd = new PutObjectCommand({
         Bucket: R2_BUCKET,
         Key: obj.Key,
@@ -374,7 +449,5 @@ async function cleanArticles() {
   }
   
   console.log(`[crawl-cnblogs] 共清理 ${cleaned} 篇文章`);
-  
-  // 6. 更新 manifest.json
   await updateManifest();
 }

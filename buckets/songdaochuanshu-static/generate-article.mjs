@@ -24,6 +24,58 @@ const ZHIPU_API_KEY = process.env.ZHIPU_API_KEY;
 const ZHIPU_MODEL = 'glm-4-flash';
 
 // ──────────────────────────────────────────────
+// 通用：调用智谱 AI
+// ──────────────────────────────────────────────
+function callZhipu(prompt, maxTokens = 300) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify({
+      model: ZHIPU_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.1,
+      max_tokens: maxTokens,
+    });
+
+    const options = {
+      hostname: 'open.bigmodel.cn',
+      path: '/api/paas/v4/chat/completions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ZHIPU_API_KEY}`,
+        'Content-Length': Buffer.byteLength(payload),
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const response = JSON.parse(data);
+          if (response.choices && response.choices[0]) {
+            resolve(response.choices[0].message.content);
+          } else {
+            reject(new Error(`AI 返回格式错误：${data}`));
+          }
+        } catch (e) {
+          reject(new Error(`解析 AI 响应失败（${e.message}）：${data.substring(0, 200)}`));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+function parseJSON(raw) {
+  const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) || raw.match(/^\s*(\{[\s\S]*\})/);
+  const jsonStr = jsonMatch ? jsonMatch[1] : raw;
+  return JSON.parse(jsonStr.trim());
+}
+
+// ──────────────────────────────────────────────
 // 博客园标题抓取
 // ──────────────────────────────────────────────
 function fetchHtml(url) {
@@ -40,7 +92,6 @@ function fetchHtml(url) {
 async function fetchCnblogsTitles(count = 30) {
   const xml = await fetchHtml('https://feed.cnblogs.com/blog/sitehome/rss');
   
-  // Atom feed: <entry>...<title type="text">标题</title>...</entry>
   const entries = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)];
   const titles = new Set();
   
@@ -48,7 +99,6 @@ async function fetchCnblogsTitles(count = 30) {
     const m = entry[1].match(/<title type="text">([^<]+)<\/title>/);
     if (!m) continue;
     let title = m[1].trim();
-    // 去掉 " - 作者名" 后缀
     title = title.replace(/\s*-\s*[^-\s]+$/, '').trim();
     if (title.length >= 6 && title.length <= 60) titles.add(title);
     if (titles.size >= count) break;
@@ -75,9 +125,8 @@ async function getUsedTitles() {
 }
 
 // 用智谱 AI 判断标题（广告检测 + 相似度 + 质量评分）
-function askAIForTitle(cnTitles, usedTitles) {
-  return new Promise((resolve, reject) => {
-    const prompt = `你是博客文章标题审核员。给定一批博客园标题（候选池）和已发布过的标题列表，请筛选出最适合用于生成技术博客文章的一个标题。
+async function askAIForTitle(cnTitles, usedTitles) {
+  const prompt = `你是博客文章标题审核员。给定一批博客园标题（候选池）和已发布过的标题列表，请筛选出最适合用于生成技术博客文章的一个标题。
 
 已发布的标题（不要重复或相似）：
 ${usedTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
@@ -103,51 +152,9 @@ ${cnTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
 
 只返回一个标题，不要返回多个。如果候选池全部不合适，返回空的 chosen（chosen: ""）。`;
 
-    const payload = JSON.stringify({
-      model: ZHIPU_MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.1,
-      max_tokens: 1500,
-    });
-
-    const options = {
-      hostname: 'open.bigmodel.cn',
-      path: '/api/paas/v4/chat/completions',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${ZHIPU_API_KEY}`,
-        'Content-Length': Buffer.byteLength(payload),
-      },
-    };
-
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          const response = JSON.parse(data);
-          if (response.choices && response.choices[0]) {
-            const raw = response.choices[0].message.content;
-            // 尝试从 markdown 代码块或纯文本中提取 JSON
-            const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) || raw.match(/^\s*(\{[\s\S]*\})/);
-            const jsonStr = jsonMatch ? jsonMatch[1] : raw;
-            const result = JSON.parse(jsonStr.trim());
-            console.log('[generate-article] AI 标题筛选结果:', result.reason);
-            resolve(result);
-          } else {
-            reject(new Error(`AI 返回格式错误：${data}`));
-          }
-        } catch (e) {
-          reject(new Error(`解析 AI 响应失败（${e.message}）：${data.substring(0, 200)}`));
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.write(payload);
-    req.end();
-  });
+  const raw = await callZhipu(prompt, 1500);
+  console.log('[generate-article] AI 标题筛选完成');
+  return parseJSON(raw);
 }
 
 // 选取一个未使用、不相似、无广告的标题
@@ -162,20 +169,17 @@ async function pickUnusedTopic() {
   }
 
   if (usedTitles.length === 0) {
-    // 没有任何已用标题时，随机选一个（但仍做广告检测）
     const { chosen } = await askAIForTitle(cnTitles, []);
     if (!chosen) throw new Error('博客园标题全部不合适（含广告或非技术类），请稍后重试');
     console.log(`[generate-article] 选中标题: ${chosen}`);
     return chosen;
   }
 
-  // AI 判断相似度和广告
   const result = await askAIForTitle(cnTitles, usedTitles);
   if (!result.chosen) {
     throw new Error('博客园标题全部不合适（含广告/重复/非技术类），请稍后重试');
   }
 
-  // 打印被拒绝的标题及原因
   if (result.rejected && result.rejected.length > 0) {
     result.rejected.slice(0, 5).forEach(r => {
       console.log(`[generate-article] 跳过（${r.reason}）: ${r.title}`);
@@ -189,11 +193,10 @@ async function pickUnusedTopic() {
 // ──────────────────────────────────────────────
 // 智谱 AI 生成
 // ──────────────────────────────────────────────
-function generateArticle(topic) {
-  return new Promise((resolve, reject) => {
-    console.log(`[generate-article] 开始生成文章：《${topic}》`);
-    
-    const prompt = `你是一位技术博主，写了 10 年博客。请用你的真实口吻写一篇关于"${topic}"的文章。
+async function generateArticle(topic) {
+  console.log(`[generate-article] 开始生成文章：《${topic}》`);
+  
+  const prompt = `你是一位技术博主，写了 10 年博客。请用你的真实口吻写一篇关于"${topic}"的文章。
 
 写作要求：
 - 像在和朋友聊天，口语化，可以用"其实"、"说实话"、"我觉着"
@@ -204,48 +207,38 @@ function generateArticle(topic) {
 - 输出 Markdown 格式
 
 直接开始写，不要加"好的，我来写..."这种前缀。`;
-    
-    const payload = JSON.stringify({
-      model: ZHIPU_MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.9,
-      max_tokens: 2500,
-    });
-    
-    const options = {
-      hostname: 'open.bigmodel.cn',
-      path: '/api/paas/v4/chat/completions',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${ZHIPU_API_KEY}`,
-        'Content-Length': Buffer.byteLength(payload),
-      },
-    };
-    
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          const response = JSON.parse(data);
-          if (response.choices && response.choices[0]) {
-            const content = response.choices[0].message.content;
-            console.log(`[generate-article] ✅ 文章生成成功（${content.length} 字符）`);
-            resolve(content);
-          } else {
-            reject(new Error(`智谱 AI 返回格式错误：${data}`));
-          }
-        } catch (e) {
-          reject(new Error(`解析智谱 AI 响应失败：${e.message}`));
-        }
-      });
-    });
-    
-    req.on('error', reject);
-    req.write(payload);
-    req.end();
-  });
+
+  const content = await callZhipu(prompt, 2500);
+  console.log(`[generate-article] ✅ 文章生成成功（${content.length} 字符）`);
+  return content;
+}
+
+// ──────────────────────────────────────────────
+// AI 分类 & 标签生成
+// ──────────────────────────────────────────────
+async function askAIForCategoryAndTags(title, contentSnippet) {
+  const prompt = `你是技术博客分类专家。根据文章标题和内容片段，给出最合适的分类和标签。
+
+文章标题：${title}
+内容片段：
+${contentSnippet.substring(0, 800)}
+
+从以下分类中选择**唯一一个**最匹配的：
+AI、前端、后端、DevOps、DevTools、数据库、安全、云计算、性能优化、开源、Python、JavaScript、TypeScript、Rust、Go、Java、C/C++、Node.js、技术
+
+再给出 3-5 个标签，要求：
+- 用中文，2-4 个字
+- 是文章的核心技术主题，不是从标题硬切的词
+- 优先用技术领域词（如 Docker、微服务、CI/CD、监控、容器化）
+- 不要出现"为什么"、"如何"、"越来越"这种虚词
+
+返回纯 JSON，不要代码块：
+{"category": "分类名", "tags": ["标签1", "标签2", "标签3"]}`;
+
+  const raw = await callZhipu(prompt, 300);
+  const result = parseJSON(raw);
+  console.log(`[generate-article] AI 分类: ${result.category} | 标签: ${JSON.stringify(result.tags)}`);
+  return result;
 }
 
 // 从文章内容提取标题
@@ -291,53 +284,6 @@ layout: post
 }
 
 // ──────────────────────────────────────────────
-// 分类 & 标签提取
-// ──────────────────────────────────────────────
-
-const CATEGORY_MAP = {
-  python: 'Python', javascript: 'JavaScript', typescript: 'TypeScript',
-  rust: 'Rust', golang: 'Go', java: 'Java', c: 'C/C++',
-  react: '前端', vue: '前端', angular: '前端', html: '前端', css: '前端',
-  nodejs: 'Node.js', node: 'Node.js',
-  docker: 'DevOps', kubernetes: 'DevOps', k8s: 'DevOps', linux: 'DevOps', nginx: 'DevOps',
-  git: 'DevTools', github: 'DevTools', vscode: 'DevTools', vim: 'DevTools',
-  mysql: '数据库', postgresql: '数据库', mongodb: '数据库', redis: '数据库', sql: '数据库',
-  api: '后端', rest: '后端', graphql: '后端', grpc: '后端',
-  ai: 'AI', 'machine learning': 'AI', 'deep learning': 'AI', llm: 'AI',
-  chatgpt: 'AI', openai: 'AI', gemini: 'AI',
-  security: '安全', https: '安全', oauth: '安全',
-  cloudflare: '云计算', aws: '云计算', azure: '云计算', gcp: '云计算',
-  fastapi: 'Python', django: 'Python', flask: 'Python',
-  spring: 'Java', springboot: 'Java',
-  performance: '性能优化', optimization: '性能优化', cache: '性能优化',
-  testing: '测试', ci: 'DevOps', cd: 'DevOps', cicd: 'DevOps',
-  'hello github': '开源', 'hellogithub': '开源',
-};
-
-function topicToCategory(topic) {
-  const lower = topic.toLowerCase();
-  for (const [kw, cat] of Object.entries(CATEGORY_MAP)) {
-    if (lower.includes(kw)) return cat;
-  }
-  return '技术'; // 默认
-}
-
-function topicToTags(topic) {
-  const lower = topic.toLowerCase();
-  const tags = new Set();
-  for (const [kw, cat] of Object.entries(CATEGORY_MAP)) {
-    if (lower.includes(kw)) {
-      tags.add(cat);
-      tags.add(kw.replace(/[A-Z]/g, m => m).replace(/^./, s => s.toUpperCase()).replace(/([A-Z])/g, ' $1').trim());
-    }
-  }
-  // 从标题提取 2-3 个中文关键词作为额外标签
-  const cnWords = (topic.match(/[\u4e00-\u9fa5]{2,4}/g) || []).slice(0, 2);
-  cnWords.forEach(w => tags.add(w));
-  return Array.from(tags).slice(0, 5);
-}
-
-// ──────────────────────────────────────────────
 // manifest 更新
 // ──────────────────────────────────────────────
 async function updateManifest(post) {
@@ -352,7 +298,6 @@ async function updateManifest(post) {
       // manifest 不存在，正常
     }
 
-    // 避免重复
     if (!manifest.posts.some(p => p.title === post.title)) {
       manifest.posts.unshift(post);
       manifest.total = manifest.posts.length;
@@ -383,7 +328,6 @@ async function main() {
   }
   
   try {
-    // 自动从博客园选取标题（过滤已用/相似）
     const topic = await pickUnusedTopic();
     console.log(`[generate-article] 主题：${topic}`);
     
@@ -393,14 +337,12 @@ async function main() {
     console.log('[generate-article] 🎯 去除 AI 味...');
     const { content: cleanContent, score, avgLen } = removeAISlop(content);
     
-    // 提取分类和标签
-    const category = topicToCategory(topic);
-    const tags = topicToTags(topic);
-    console.log(`[generate-article] 分类: ${category} | 标签: ${JSON.stringify(tags)}`);
+    // AI 生成分类和标签
+    console.log('[generate-article] 🏷️  AI 生成分类标签...');
+    const { category, tags } = await askAIForCategoryAndTags(topic, cleanContent);
 
     const filename = await uploadToR2(topic, cleanContent, category, tags);
 
-    // 更新 manifest（包含分类和标签）
     const date = new Date().toISOString().split('T')[0];
     const slug = topic.toLowerCase().replace(/[^\w\u4e00-\u9fa5]+/g, '-').replace(/^[-]+|[-]+$/g, '').substring(0, 50);
     const r2Key = `blog/${date}-${slug}.md`;
@@ -415,7 +357,6 @@ async function main() {
       description: cleanContent.replace(/[#*`]/g, '').substring(0, 120) + '...',
     });
     
-    // 生成结果摘要
     const summary = {
       success: true,
       workflow: 'generate-article',
