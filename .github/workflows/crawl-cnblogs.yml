@@ -5,11 +5,15 @@ on:
     - cron: '0 2 * * *'  # 每天北京时间 10:00（UTC 2:00）
   workflow_dispatch:        # 支持手动触发
     inputs:
-      fix_manifest:
-        description: '只修复 manifest.json（不添加新文章）'
-        required: false
-        default: 'false'
-        type: boolean
+      mode:
+        description: '运行模式'
+        required: true
+        default: 'crawl'
+        type: choice
+        options:
+          - crawl
+          - fix_manifest
+          - clean_articles
 
 jobs:
   crawl:
@@ -25,8 +29,10 @@ jobs:
       
       - name: Run crawler
         run: |
-          if [ "${{ github.event.inputs.fix_manifest }}" = "true" ]; then
+          if [ "${{ github.event.inputs.mode }}" = "fix_manifest" ]; then
             node buckets/songdaochuanshu-static/crawl-cnblogs.mjs --fix-manifest
+          elif [ "${{ github.event.inputs.mode }}" = "clean_articles" ]; then
+            node buckets/songdaochuanshu-static/crawl-cnblogs.mjs --clean-articles
           else
             node buckets/songdaochuanshu-static/crawl-cnblogs.mjs
           fi
