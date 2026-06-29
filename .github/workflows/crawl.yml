@@ -23,7 +23,7 @@ jobs:
 
       - name: Crawl Lolicon images
         id: crawl
-        run: node r2/crawl-lolicon.mjs
+        run: node buckets/homepage-bg/crawl-lolicon.mjs
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}

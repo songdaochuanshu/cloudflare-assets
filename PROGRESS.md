@@ -45,3 +45,35 @@
 - [ ] Workers 脚本（workers/ 目录）
 - [ ] 为其他工作流添加邮件通知（update-images-info、delete-images 等）
 - [ ] 删除 R2 根目录下的旧 images-info.json（如果有残留）
+
+## 2026-06-29
+
+### 完成
+
+- [x] 按桶重构目录结构：新建 `buckets/` 目录，按 R2 桶名分子目录
+  - `buckets/homepage-bg/` — homepage-bg 桶（图片）脚本
+  - `buckets/songdaochuanshu-static/` — songdaochuanshu-static 桶（博客文章，待开发）
+  - `r2/r2-client.mjs` — 共享模块保持不变，脚本改用 `../../r2/r2-client.mjs` 导入
+  - 更新 `.github/workflows/crawl.yml`、`update-images-info.yml`、`delete.yml` 中的脚本路径
+
+### 项目结构（最新）
+
+```
+cloudflare-assets/
+├── r2/
+│   └── r2-client.mjs            # 共享 R2 客户端（签名 + 上传，所有桶共用）
+├── buckets/                     # 按 R2 桶分目录
+│   ├── homepage-bg/             # homepage-bg 桶（图片）
+│   │   ├── crawl-lolicon.mjs
+│   │   ├── update-images-info.mjs
+│   │   ├── delete-images.mjs
+│   │   ├── delete-non-lolicon.mjs
+│   │   └── list-prefixes.mjs
+│   └── songdaochuanshu-static/ # songdaochuanshu-static 桶（博客文章，待开发）
+│       └── (待添加爬虫脚本)
+├── utils/
+│   └── email-notifier.mjs       # 通用邮件通知组件（Resend）
+├── cdn/                         # CDN 配置（待开发）
+├── workers/                     # Cloudflare Workers（待开发）
+└── .github/workflows/          # GitHub Actions 定时任务
+```
