@@ -283,7 +283,20 @@ async function main() {
 }
 
 // 命令行参数处理
-if (process.argv.includes('--fix-manifest')) {
+if (process.argv.includes('--clean-articles')) {
+  // 批量清理文章的爬取痕迹
+  (async () => {
+    console.log('[crawl-cnblogs] --clean-articles 模式：批量清理爬取痕迹');
+    try {
+      await cleanArticles();
+      console.log('[crawl-cnblogs] ✅ 文章清理完成');
+      process.exit(0);
+    } catch (err) {
+      console.error('[crawl-cnblogs] 错误：', err.message);
+      process.exit(1);
+    }
+  })();
+} else if (process.argv.includes('--fix-manifest')) {
   // 只修复 manifest.json，不爬取新文章
   (async () => {
     console.log('[crawl-cnblogs] --fix-manifest 模式：只修复 manifest.json');
@@ -302,4 +315,66 @@ if (process.argv.includes('--fix-manifest')) {
     console.error('[crawl-cnblogs] 错误：', err.message);
     process.exit(1);
   });
+}
+
+// 批量清理文章的爬取痕迹
+async function cleanArticles() {
+  console.log('[crawl-cnblogs] 开始清理文章...');
+  
+  // 1. 获取所有文章
+  const listCmd = new ListObjectsV2Command({ Bucket: R2_BUCKET, Prefix: 'blog/', MaxKeys: 1000 });
+  const response = await s3.send(listCmd);
+  
+  let cleaned = 0;
+  for (const obj of response.Contents || []) {
+    if (!obj.Key.endsWith('.md')) continue;
+    
+    // 2. 读取文章内容
+    try {
+      const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: obj.Key });
+      const { Body } = await s3.send(getCmd);
+      let content = await Body.transformToString();
+      
+      // 3. 移除爬取痕迹
+      // 移除：> 原文：[标题](url)
+      content = content.replace(/^>\s*原文：\[[^\]]+\]\([^)]+\)\s*$/gm, '');
+      // 移除：> 来源：博客园推荐文章
+      content = content.replace(/^>\s*来源：博客园推荐文章\s*$/gm, '');
+      // 移除：> 爬取时间：...
+      content = content.replace(/^>\s*爬取时间：[^\s]*\s*$/gm, '');
+      // 移除多余的空行（连续 2 个以上）
+      content = content.replace(/\n{3,}/g, '\n\n');
+      
+      // 4. 如果文末没有原文链接，添加（从 frontmatter 的 source: 提取）
+      const sourceMatch = content.match(/^source:\s*(.+)$/m);
+      if (sourceMatch) {
+        const sourceUrl = sourceMatch[1].trim();
+        // 检查文末是否已有原文链接
+        if (!content.match(/---\s*\n>\s*原文链接：/m)) {
+          // 在 frontmatter 结束后、第一个标题前插入
+          content = content.replace(/---\s*\n\n#\s/m, `---\n\n# `);
+          // 在内容末尾添加
+          content = content.trimEnd() + '\n\n---\n> 原文链接：' + sourceUrl;
+        }
+      }
+      
+      // 5. 上传回 R2
+      const putCmd = new PutObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: obj.Key,
+        Body: content,
+        ContentType: 'text/markdown; charset=utf-8',
+      });
+      await s3.send(putCmd);
+      cleaned++;
+      console.log(`[crawl-cnblogs] ✅ 已清理：${obj.Key}`);
+    } catch (e) {
+      console.error(`[crawl-cnblogs] 清理 ${obj.Key} 失败：`, e.message);
+    }
+  }
+  
+  console.log(`[crawl-cnblogs] 共清理 ${cleaned} 篇文章`);
+  
+  // 6. 更新 manifest.json
+  await updateManifest();
 }
