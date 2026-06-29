@@ -253,7 +253,20 @@ export function removeAISlop(text) {
   // 再次清理连续空行
   result = collapseBlankLines(result);
   
-  return result;
+  // 评分
+  const score = scoreText(result);
+  
+  // 计算平均段落长度
+  const lines = result.split('\n').filter(l => l.trim());
+  const avgLen = lines.length > 0
+    ? Math.round(result.replace(/\s/g, '').length / lines.length)
+    : 0;
+  
+  return {
+    content: result,
+    score: score,
+    avgLen: avgLen,
+  };
 }
 
 export function scoreContent(text) {
