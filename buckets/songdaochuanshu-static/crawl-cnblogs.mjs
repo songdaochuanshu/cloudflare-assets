@@ -144,62 +144,6 @@ async function uploadToR2(title, content, publishDate) {
   return filename;
 }
 
-// 主函数
-async function main() {
-  console.log('[crawl-cnblogs] 开始...');
-  
-  // 1. 获取首页 HTML
-  const html = await fetchHtml(CNBLOGS_HOME);
-  console.log(`[crawl-cnblogs] 首页 HTML 长度：${html.length}`);
-  
-  // 2. 提取文章链接
-  const links = extractArticleLinks(html);
-  console.log(`[crawl-cnblogs] 找到 ${links.length} 篇文章`);
-  
-  if (links.length === 0) {
-    console.log('[crawl-cnblogs] 未找到文章');
-    return;
-  }
-  
-  // 3. 获取现有文章标题（去重）
-  const existingTitles = await getExistingTitles();
-  console.log(`[crawl-cnblogs] R2 已有 ${existingTitles.size} 篇文章`);
-  
-  // 4. 找一篇不重复的文章
-  let targetUrl = null;
-  let targetTitle = null;
-  for (const url of links) {
-    const { title } = await fetchArticle(url);
-    if (!existingTitles.has(title)) {
-      targetUrl = url;
-      targetTitle = title;
-      console.log(`[crawl-cnblogs] 找到新文章：《${title}》`);
-      break;
-    } else {
-      console.log(`[crawl-cnblogs] 跳过（已存在）：《${title}》`);
-    }
-  }
-  
-  if (!targetUrl) {
-    console.log('[crawl-cnblogs] 所有文章都已存在，无需上传');
-    return;
-  }
-  
-  // 5. 获取内容并上传
-  const { title, markdown, publishDate } = await fetchArticle(targetUrl);
-  const key = await uploadToR2(title, markdown, publishDate);
-  console.log(`[crawl-cnblogs] ✅ 上传成功：${key}`);
-  
-  // 6. 更新 manifest.json
-  await updateManifest();
-  console.log('[crawl-cnblogs] ✅ manifest.json 已更新');
-}
-
-main().catch(err => {
-  console.error('[crawl-cnblogs] 错误：', err.message);
-  process.exit(1);
-});
-
 // 更新 manifest.json（从 frontmatter 读取标题和日期）
 async function updateManifest() {
   console.log('[crawl-cnblogs] 开始更新 manifest.json...');
@@ -269,4 +213,77 @@ async function updateManifest() {
   });
   await s3.send(putCmd);
   console.log(`[crawl-cnblogs] manifest.json 已更新（${posts.length} 篇文章）`);
+}
+
+// 主函数（爬取新文章）
+async function main() {
+  console.log('[crawl-cnblogs] 开始爬取...');
+  
+  // 1. 获取首页 HTML
+  const html = await fetchHtml(CNBLOGS_HOME);
+  console.log(`[crawl-cnblogs] 首页 HTML 长度：${html.length}`);
+  
+  // 2. 提取文章链接
+  const links = extractArticleLinks(html);
+  console.log(`[crawl-cnblogs] 找到 ${links.length} 篇文章`);
+  
+  if (links.length === 0) {
+    console.log('[crawl-cnblogs] 未找到文章');
+    return;
+  }
+  
+  // 3. 获取现有文章标题（去重）
+  const existingTitles = await getExistingTitles();
+  console.log(`[crawl-cnblogs] R2 已有 ${existingTitles.size} 篇文章`);
+  
+  // 4. 找一篇不重复的文章
+  let targetUrl = null;
+  let targetTitle = null;
+  for (const url of links) {
+    const { title } = await fetchArticle(url);
+    if (!existingTitles.has(title)) {
+      targetUrl = url;
+      targetTitle = title;
+      console.log(`[crawl-cnblogs] 找到新文章：《${title}》`);
+      break;
+    } else {
+      console.log(`[crawl-cnblogs] 跳过（已存在）：《${title}》`);
+    }
+  }
+  
+  if (!targetUrl) {
+    console.log('[crawl-cnblogs] 所有文章都已存在，无需上传');
+    return;
+  }
+  
+  // 5. 获取内容并上传
+  const { title, markdown, publishDate } = await fetchArticle(targetUrl);
+  const key = await uploadToR2(title, markdown, publishDate);
+  console.log(`[crawl-cnblogs] ✅ 上传成功：${key}`);
+  
+  // 6. 更新 manifest.json
+  await updateManifest();
+  console.log('[crawl-cnblogs] ✅ manifest.json 已更新');
+}
+
+// 命令行参数处理
+if (process.argv.includes('--fix-manifest')) {
+  // 只修复 manifest.json，不爬取新文章
+  (async () => {
+    console.log('[crawl-cnblogs] --fix-manifest 模式：只修复 manifest.json');
+    try {
+      await updateManifest();
+      console.log('[crawl-cnblogs] ✅ manifest.json 已修复');
+      process.exit(0);
+    } catch (err) {
+      console.error('[crawl-cnblogs] 错误：', err.message);
+      process.exit(1);
+    }
+  })();
+} else {
+  // 正常模式：爬取新文章
+  main().catch(err => {
+    console.error('[crawl-cnblogs] 错误：', err.message);
+    process.exit(1);
+  });
 }
