@@ -129,70 +129,33 @@ layout: post
   return filename;
 }
 
-// 更新 manifest.json（简化版）
+// 更新 manifest.json（调用 crawl-cnblogs.mjs --fix-manifest）
 async function updateManifest() {
   console.log('[generate-article] 开始更新 manifest.json...');
   
-  try {
-    // 获取所有 blog/ 下的 .md 文件
-    const listCmd = new ListObjectsV2Command({ Bucket: R2_BUCKET, Prefix: 'blog/', MaxKeys: 1000 });
-    const response = await s3.send(listCmd);
-    
-    const posts = [];
-    for (const obj of response.Contents || []) {
-      if (!obj.Key.endsWith('.md')) continue;
-      
-      try {
-        const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: obj.Key });
-        const { Body } = await s3.send(getCmd);
-        const content = await streamToString(Body);
-        
-        const titleMatch = content.match(/^title:\s*(.+)$/m);
-        const dateMatch = content.match(/^date:\s*(.+)$/m);
-        
-        posts.push({
-          title: titleMatch ? titleMatch[1].trim() : '无标题',
-          date: dateMatch ? dateMatch[1].trim() : new Date().toISOString(),
-          url: obj.Key,
-        });
-      } catch (e) {
-        console.error(`[generate-article] 读取 ${obj.Key} 失败：`, e.message);
-      }
-    }
-    
-    // 按日期排序
-    posts.sort((a, b) => new Date(b.date) - new Date(a.date));
-    
-    // 生成 manifest.json
-    const manifest = {
-      posts: posts.map(p => ({
-        title: p.title,
-        url: p.url,
-        date: p.date,
-      })),
-    };
-    
-    const putCmd = new PutObjectCommand({
-      Bucket: R2_BUCKET,
-      Key: 'manifest.json',
-      Body: JSON.stringify(manifest, null, 2),
-      ContentType: 'application/json; charset=utf-8',
-    });
-    
-    await s3.send(putCmd);
-    console.log(`[generate-article] ✅ manifest.json 已更新（${posts.length} 篇文章）`);
-  } catch (err) {
-    console.error('[generate-article] 更新 manifest.json 失败：', err.message);
-  }
-}
-
-// 辅助函数：stream 转 string
-function streamToString(stream) {
   return new Promise((resolve, reject) => {
-    const chunks = [];
-    stream.on('data', chunk => chunks.push(chunk));
-    stream.on('error', reject);
-    stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+    const { exec } = require('child_process');
+    const path = require('path');
+    
+    // 获取当前脚本所在目录
+    const scriptDir = __dirname;
+    const fixManifestScript = path.join(scriptDir, 'crawl-cnblogs.mjs');
+    
+    console.log(`[generate-article] 调用 ${fixManifestScript} --fix-manifest`);
+    
+    exec(`node "${fixManifestScript}" --fix-manifest`, {
+      env: process.env
+    }, (error, stdout, stderr) => {
+      if (error) {
+        console.error('[generate-article] 更新 manifest.json 失败：', error.message);
+        console.error('[generate-article] stderr:', stderr);
+        reject(error);
+      } else {
+        console.log('[generate-article] ✅ manifest.json 已更新');
+        console.log(stdout);
+        resolve();
+      }
+    });
   });
 }
 
