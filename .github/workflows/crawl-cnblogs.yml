@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: '0 2 * * *'  # 每天北京时间 10:00（UTC 2:00）
   workflow_dispatch:        # 支持手动触发
+    inputs:
+      fix_manifest:
+        description: '只修复 manifest.json（不添加新文章）'
+        required: false
+        default: 'false'
+        type: boolean
 
 jobs:
   crawl:
@@ -18,7 +24,12 @@ jobs:
         run: npm install @aws-sdk/client-s3
       
       - name: Run crawler
-        run: node buckets/songdaochuanshu-static/crawl-cnblogs.mjs
+        run: |
+          if [ "${{ github.event.inputs.fix_manifest }}" = "true" ]; then
+            node buckets/songdaochuanshu-static/crawl-cnblogs.mjs --fix-manifest
+          else
+            node buckets/songdaochuanshu-static/crawl-cnblogs.mjs
+          fi
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
