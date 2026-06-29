@@ -4,80 +4,85 @@
 
 ```
 cloudflare-assets/
-├── r2/                            # R2 图片管理
-│   ├── crawl-lolicon.mjs          # 爬虫主脚本
-│   ├── check-lolicon.mjs          # 图片来源检查
-│   ├── delete-images.mjs          # 按文件名删除
-│   ├── delete-non-lolicon.mjs     # 按 PID 删除
-│   ├── update-images-info.mjs     # 元数据更新
-│   ├── migrate-to-prefix.mjs      # 迁移：根目录 → r18/
-│   ├── migrate-backgrounds.mjs    # 迁移：backgrounds/ → normal/
-│   ├── quick-list.mjs             # R2 结构查看工具
-│   ├── list-prefixes.mjs          # R2 前缀列表工具
-│   ├── images-info.json           # 图片元数据（自动生成）
-│   └── output/                    # 检查结果输出
-│       ├── lolicon-images.json
-│       └── non-lolicon-images.json
-├── cdn/                           # CDN 配置（待扩展）
-├── workers/                       # Workers 脚本（待扩展）
-└── .github/workflows/
-    ├── crawl.yml                  # 定时爬取
-    ├── check.yml                  # 手动检查
-    ├── delete.yml                 # 手动删除
-    ├── update-images-info.yml     # 定时更新元数据
-    ├── migrate.yml                # 根目录 → r18/ 迁移
-    ├── migrate-bg.yml             # backgrounds/ → normal/ 迁移
-    └── list-prefixes.yml          # R2 前缀查看
+├── .github/
+│   └── workflows/
+│       ├── cleanup-blog.yml
+│       ├── crawl-cnblogs.yml
+│       ├── crawl.yml
+│       ├── delete-all-posts.yml
+│       ├── delete-first-posts.yml
+│       ├── delete-old-posts.yml
+│       ├── delete.yml
+│       ├── fix-tags.yml
+│       ├── generate-article.yml
+│       └── update-images-info.yml
+├── buckets/
+│   ├── homepage-bg/               # 图片存储桶 (img-homepage.openserve.cloud)
+│   │   ├── crawl-lolicon.mjs      # Lolicon API 爬虫
+│   │   ├── delete-images.mjs      # 批量删除图片
+│   │   ├── delete-non-lolicon.mjs # 删除非 Lolicon 来源图片
+│   │   ├── enrich-metadata.mjs    # 元数据补全
+│   │   ├── fix-images-info-structure.mjs  # 修复 images-info.json 结构
+│   │   ├── list-prefixes.mjs      # 列出 R2 前缀
+│   │   └── update-images-info.mjs # 更新 images-info.json
+│   └── songdaochuanshu-static/    # 博客存储桶 (songdaochuanshu.com)
+│       ├── articles/              # 博客园爬取的文章
+│       └── posts/                 # AI 生成的文章
+├── cdn/                           # CDN 配置 (Workers 路由等)
+│   └── .gitkeep
+├── r2/
+│   └── r2-client.mjs              # R2 操作核心 (AWS Signature V4)
+├── utils/
+│   ├── anti-slop.mjs              # 反 AI 废话检测
+│   ├── email-notifier.mjs         # 邮件通知 (QQ 邮箱 SMTP)
+│   └── send-email.mjs             # 邮件发送底层
+├── workers/                       # Cloudflare Workers 脚本
+│   └── .gitkeep
+├── CONTEXT.md                     # 项目背景
+├── CONTRIBUTING.md                # 开发上下文 (本文件)
+├── PROGRESS.md                    # 工作进度日志
+├── README.md                      # 项目说明
+└── images-info.json               # (待清理) 旧根目录残留
 ```
 
-## 核心设计
+## 核心模块
 
-### R2 签名
+### R2 签名模块 (`r2/r2-client.mjs`)
+- AWS Signature V4 签名
+- Content-Type 签名修复
+- 环境变量：`CLOUDFLARE_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
+- 每个存储桶独立凭据
 
-所有 R2 操作通过 S3 兼容 API 实现，使用 **AWS Signature V4** 手写签名。
+### 图片管理 (`buckets/homepage-bg/`)
+- 桶：`homepage-bg`
+- 域名：`img-homepage.openserve.cloud`
+- 分类：`normal/`（普通）和 `r18/`（成人）
+- 来源：Lolicon API (`r18=1`)
+- 元数据：`images-info.json`（含 `normal` 和 `r18` 数组）
 
-签名函数 `signRequest(method, uri, query, bodyHash, date, extraHeaders)` 位于每个脚本内部。
+### 博客系统 (`buckets/songdaochuanshu-static/`)
+- 桶：`songdaochuanshu-static`
+- 域名：`songdaochuanshu.com`
+- 爬虫：博客园文章爬取
+- 生成：GLM-4-Flash (智谱AI) 生成新文章
+- 检测：反 AI 废话（4 个维度评分）
 
-关键点：
-- 必须签名所有发送的 HTTP 头（`host`、`x-amz-content-sha256`、`x-amz-date`，PUT 请求还需 `content-type`）
-- 头名按字母序排列
-- `extraHeaders` 参数支持传入额外需要签名的头
+### 邮件通知 (`utils/`)
+- QQ 邮箱 SMTP 发送
+- 环境变量：`SMTP_USER`, `SMTP_PASS`
 
-### 桶目录结构
+## 开发规则
 
-```
-homepage-bg/
-├── r18/          # R18 插画（Lolicon API 爬取）
-├── normal/       # 普通插画
-└── images-info.json  # 元数据（可选）
-```
+1. **Node.js 环境**：所有脚本为 ESM（`.mjs`），使用 `node:https`、`node:crypto`
+2. **零依赖**：仅用 Node.js 内置模块
+3. **密钥管理**：环境变量或 GitHub Secrets，不硬编码
+4. **工作流**：Docker 容器 `node:20-slim`，统一权限 `permissions: contents: write`
+5. **提交格式**：语义化提交（`feat:`、`fix:`、`refactor:`、`ci:`、`docs:`、`chore:`）
+6. **环境变量**：通过 `.env` 文件或 GitHub Secrets 配置
 
-- 图片以 Pixiv PID 命名：`12345678.jpg`
-- CDN 地址：`https://img-homepage.openserve.cloud/{prefix}/{filename}`
-- 新增分类：在桶内创建新前缀目录，代码中添加对应的 `R2_PREFIX`
+## 关键限制
 
-### 环境变量命名
-
-| 变量名 | 说明 |
-|---|---|
-| `CF_ACCOUNT_ID` | Cloudflare 账户 ID |
-| `R2_KEY_ID` | R2 API Token Access Key |
-| `R2_SECRET_KEY` | R2 API Token Secret Key |
-| `R2_HOMEPAGE_BUCKET` | 首页背景图桶名 |
-
-桶变量统一 `R2_<用途>_BUCKET` 格式，新增桶按此规范命名。
-
-## 已知问题
-
-1. **502 偶发**：Cloudflare 网关偶尔返回 502，属正常现象
-2. **无公共模块**：R2 签名代码在每个脚本中重复，未抽取为共享模块
-3. **Lolicon 限流**：爬虫已限制为每 15-20 秒下载一张，避免被封 IP
-
-## 提交规范
-
-- `feat:` 新功能
-- `fix:` 修复
-- `refactor:` 重构
-- `ci:` CI/CD 相关
-- `docs:` 文档
-- `chore:` 杂项
+- GitHub API rate limit: 5000/hour
+- Lolicon API: 3 req/sec
+- R2 免费额度: 10GB 存储, 10M 次请求/月
+- 免费套餐不能绑定自定义域名（需 Pro Plan）
