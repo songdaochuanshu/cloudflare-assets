@@ -148,9 +148,7 @@ async function main() {
 main().catch(err => {
   console.error('[crawl-cnblogs] 错误：', err.message);
   process.exit(1);
-}
-
-// 更新 manifest.json
+});
 async function updateManifest() {
   console.log('[crawl-cnblogs] 开始更新 manifest.json...');
   
@@ -209,4 +207,4 @@ async function updateManifest() {
   });
   await s3.send(putCmd);
   console.log(`[crawl-cnblogs] manifest.json 已更新（${posts.length} 篇文章）`);
-});
+}
