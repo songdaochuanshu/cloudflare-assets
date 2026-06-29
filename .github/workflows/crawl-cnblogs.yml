@@ -3,7 +3,7 @@ name: Crawl CNBlogs
 on:
   schedule:
     - cron: '0 2 * * *'  # 每天北京时间 10:00（UTC 2:00）
-  workflow_dispatch:        # 支持手动触发
+  workflow_dispatch:
     inputs:
       mode:
         description: '运行模式'
@@ -20,22 +20,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      
-      - name: Install dependencies
-        run: npm install @aws-sdk/client-s3
-      
+
       - name: Run crawler
         run: |
-          if [ "${{ github.event.inputs.mode }}" = "fix_manifest" ]; then
-            node buckets/songdaochuanshu-static/crawl-cnblogs.mjs --fix-manifest
-          elif [ "${{ github.event.inputs.mode }}" = "clean_articles" ]; then
-            node buckets/songdaochuanshu-static/crawl-cnblogs.mjs --clean-articles
-          else
-            node buckets/songdaochuanshu-static/crawl-cnblogs.mjs
-          fi
+          docker run --rm \
+            -e CF_ACCOUNT_ID \
+            -e R2_KEY_ID \
+            -e R2_SECRET_KEY \
+            -e R2_BLOG_BUCKET \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
+            node:20-slim \
+            bash -c "npm install @aws-sdk/client-s3 && \
+              if [ '${{ github.event.inputs.mode }}' = 'fix_manifest' ]; then \
+                node buckets/songdaochuanshu-static/crawl-cnblogs.mjs --fix-manifest; \
+              elif [ '${{ github.event.inputs.mode }}' = 'clean_articles' ]; then \
+                node buckets/songdaochuanshu-static/crawl-cnblogs.mjs --clean-articles; \
+              else \
+                node buckets/songdaochuanshu-static/crawl-cnblogs.mjs; \
+              fi"
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}

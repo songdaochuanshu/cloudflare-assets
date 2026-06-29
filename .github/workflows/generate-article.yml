@@ -3,7 +3,7 @@ name: Generate Article
 on:
   schedule:
     - cron: '0 1,7 * * *'  # 每天北京时间 9:00 和 15:00（UTC 1:00 和 7:00）
-  workflow_dispatch:        # 支持手动触发
+  workflow_dispatch:
     inputs:
       topic:
         description: '文章主题（留空则随机）'
@@ -15,39 +15,61 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      
-      - name: Install dependencies
-        run: npm install @aws-sdk/client-s3
-      
+
       - name: Generate article
         id: generate
         run: |
-          if [ -z "${{ github.event.inputs.topic }}" ]; then
-            node buckets/songdaochuanshu-static/generate-article.mjs
-          else
-            node buckets/songdaochuanshu-static/generate-article.mjs "${{ github.event.inputs.topic }}"
-          fi
+          docker run --rm \
+            -e CF_ACCOUNT_ID \
+            -e R2_KEY_ID \
+            -e R2_SECRET_KEY \
+            -e R2_BLOG_BUCKET \
+            -e ZHIPU_API_KEY \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
+            node:20-slim \
+            bash -c "npm install @aws-sdk/client-s3 && \
+              if [ -z '${{ github.event.inputs.topic }}' ]; then \
+                node buckets/songdaochuanshu-static/generate-article.mjs; \
+              else \
+                node buckets/songdaochuanshu-static/generate-article.mjs '${{ github.event.inputs.topic }}'; \
+              fi"
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
           R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
           R2_BLOG_BUCKET: songdaochuanshu-static
           ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
-      
+
       - name: Update manifest.json
-        run: node buckets/songdaochuanshu-static/crawl-cnblogs.mjs --fix-manifest
+        run: |
+          docker run --rm \
+            -e CF_ACCOUNT_ID \
+            -e R2_KEY_ID \
+            -e R2_SECRET_KEY \
+            -e R2_BLOG_BUCKET \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
+            node:20-slim \
+            bash -c "npm install @aws-sdk/client-s3 && node buckets/songdaochuanshu-static/crawl-cnblogs.mjs --fix-manifest"
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
           R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
           R2_BLOG_BUCKET: songdaochuanshu-static
-      
+
       - name: Send email notification
         if: always()
-        run: node utils/email-notifier.mjs
+        run: |
+          docker run --rm \
+            -e RESEND_API_KEY \
+            -e NOTIFY_EMAIL \
+            -e WORKFLOW_NAME \
+            -e WORKFLOW_STATUS \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
+            node:20-slim \
+            node utils/email-notifier.mjs
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}

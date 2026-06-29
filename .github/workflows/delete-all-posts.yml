@@ -1,30 +1,42 @@
 name: Delete All Posts
 
 on:
-  workflow_dispatch:  # 手动触发
+  workflow_dispatch:
 
 jobs:
   delete:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      
-      - name: Install dependencies
-        run: npm install @aws-sdk/client-s3
-      
+
       - name: Delete all posts
-        run: node buckets/songdaochuanshu-static/delete-all-posts.mjs
+        run: |
+          docker run --rm \
+            -e CF_ACCOUNT_ID \
+            -e R2_KEY_ID \
+            -e R2_SECRET_KEY \
+            -e R2_BLOG_BUCKET \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
+            node:20-slim \
+            bash -c "npm install @aws-sdk/client-s3 && node buckets/songdaochuanshu-static/delete-all-posts.mjs"
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
           R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
           R2_BLOG_BUCKET: songdaochuanshu-static
-      
+
       - name: Reset manifest.json
-        run: node buckets/songdaochuanshu-static/crawl-cnblogs.mjs --fix-manifest
+        run: |
+          docker run --rm \
+            -e CF_ACCOUNT_ID \
+            -e R2_KEY_ID \
+            -e R2_SECRET_KEY \
+            -e R2_BLOG_BUCKET \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
+            node:20-slim \
+            bash -c "npm install @aws-sdk/client-s3 && node buckets/songdaochuanshu-static/crawl-cnblogs.mjs --fix-manifest"
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}

@@ -17,18 +17,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
       - name: Run update script
+        run: |
+          docker run --rm \
+            -e CF_ACCOUNT_ID \
+            -e R2_KEY_ID \
+            -e R2_SECRET_KEY \
+            -e R2_HOMEPAGE_BUCKET \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
+            node:20-slim \
+            node buckets/homepage-bg/update-images-info.mjs
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
           R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
           R2_HOMEPAGE_BUCKET: homepage-bg
-        run: node buckets/homepage-bg/update-images-info.mjs
 
       - name: Commit and push if changed
         run: |
