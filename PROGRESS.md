@@ -92,6 +92,20 @@
 **TypeScript 迁移**
 - [x] 阶段 0：基础设施搭建（package.json / tsconfig.json / .gitignore）
 - [x] 阶段 1：基础设施模块迁移（r2-client / anti-slop / email-notifier / send-email）
+- [x] 阶段 2A：图片桶脚本迁移（homepage-bg 桶 7 个 .mjs → .ts）
+  - 迁移清单：list-prefixes / delete-images / delete-non-lolicon / fix-images-info-structure / update-images-info / enrich-metadata / crawl-lolicon
+  - `src/types/env.d.ts` 扩展公共类型：LoliconImage / LoliconResponse / ImageEntry / ImagesInfo / PixivOEmbed / WorkflowResult
+  - 所有 .ts 文件统一 ESM `.js` 后缀导入、process.env 守卫、async/await 类型化
+  - `npm run typecheck` 0 错误，`npm run build` 产出 `dist/buckets/homepage-bg/*.js`
+  - 旧 .mjs 文件暂未删除（按约定：阶段 4 才是清理）
+- [x] 阶段 2B：博客桶脚本迁移（songdaochuanshu-static 桶 7 个 .mjs → .ts）
+  - 迁移清单：cleanup-blog / delete-all-posts / delete-first-posts / delete-old-posts / fix-manifest-tags / crawl-cnblogs / generate-article
+  - 所有 .ts 文件均依赖 `@aws-sdk/client-s3`（已在 dependencies 中）
+  - 重点类型抽取：ZhipuResponse / CategoryTagsResult / ManifestPost / ArticleData / ChosenResult
+  - `callZhipu` 通用函数在 3 个文件（crawl-cnblogs / fix-manifest-tags / generate-article）保留本地副本，**未抽取共享**——遵循原 .mjs 结构，避免跨文件重构
+  - `generate-article.ts` 的 `let content` 优化为 `const content`（行为等价、TS 更严格）
+  - `npm run typecheck` 0 错误，`npm run build` 产出 `dist/buckets/songdaochuanshu-static/*.js`
+  - 旧 .mjs 文件暂未删除（按约定：阶段 4 才是清理）
 
 **安全扫描接入**
 - [x] 新增 `gitleaks` 密钥扫描 workflow（`.github/workflows/security-scan.yml`）
