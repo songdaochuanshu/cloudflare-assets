@@ -85,6 +85,31 @@
 - [x] 改用 Docker `node:20-slim` 避免 `setup-node@v4` 失败（仅 fix-manifest-tags，后全线修复）
 - [x] 所有 9 个工作流统一改用 Docker `node:20-slim`，彻底消除 setup-node 依赖
 
+## 2026-06-30
+
+### 完成
+
+**安全扫描接入**
+- [x] 新增 `gitleaks` 密钥扫描 workflow（`.github/workflows/security-scan.yml`）
+  - 触发：PR、main push、手动 dispatch
+  - 使用官方 `gitleaks/gitleaks-action@v2`
+  - 配套 `.github/gitleaks.toml` 定制规则，覆盖 `R2_KEY_ID` / `R2_SECRET_KEY` / `CF_ACCOUNT_ID` / `ZHIPU_API_KEY` / `RESEND_API_KEY` / SMTP 密码
+  - allowlist 排除 `images-info.json`（含 Pixiv PID/UID）和 4 个文档文件，避免误报
+- [x] 新增 `CodeQL` 静态分析 workflow（`.github/workflows/codeql.yml`）
+  - 语言：JavaScript
+  - 触发：PR、main push、手动 dispatch、每周一 UTC 02:00（北京时间 10:00）定时
+  - 使用官方 `github/codeql-action@v3`
+  - 结果上传到 Security tab
+- [x] 不使用 Docker 跑安全扫描（gitleaks/CodeQL 官方 action 直接跑 ubuntu-latest 更高效，省时省流量）
+- [x] 评估并**不接入** cloudflare/security-audit-skill 到 CI
+  - 原因：该 skill 是给 AI 编码 agent 用的代码审计工具，依赖 agent 编排多阶段流水线，不适合 cron 自动触发
+  - 建议使用场景：等 `cdn/` 和 `workers/` 模块开发时，人工用 Claude Code 等 agent 在本地审计代码时调用
+
+### 待办
+
+- [ ] GitHub 仓库后台开启 Secret Scanning 推送告警（Settings → Code security and analysis，手动点开）
+- [ ] 首次跑 gitleaks 后根据实际误报情况微调 `.github/gitleaks.toml` 的 allowlist
+
 ### 项目结构（最新）
 
 ```
@@ -113,5 +138,10 @@ cloudflare-assets/
 │   └── send-email.mjs
 ├── cdn/                                 # CDN 配置（待开发）
 ├── workers/                             # Cloudflare Workers（待开发）
-└── .github/workflows/                   # GitHub Actions（10 个工作流）
+├── .github/
+│   ├── gitleaks.toml                   # gitleaks 自定义规则
+│   └── workflows/                      # GitHub Actions（12 个工作流）
+│       ├── security-scan.yml           # 密钥扫描（gitleaks）
+│       ├── codeql.yml                  # 静态分析（CodeQL JS）
+│       └── ...（原有 10 个工作流）
 ```

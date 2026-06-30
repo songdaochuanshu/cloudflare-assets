@@ -1,0 +1,47 @@
+name: Security Scan (gitleaks)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '**.mjs'
+      - '**.js'
+      - '**.json'
+      - '**.yml'
+      - '**.yaml'
+      - '**/package.json'
+      - '**/package-lock.json'
+      - '.env.example'
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  gitleaks:
+    name: Scan for secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 默认扫描整个 git history；PR 上自动只扫增量
+          GITLEAKS_CONFIG: .github/gitleaks.toml
+
+      - name: Upload SARIF (on failure)
+        if: failure()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
+          category: gitleaks
+        continue-on-error: true

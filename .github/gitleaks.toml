@@ -1,0 +1,59 @@
+# gitleaks config — tuned for cloudflare-assets project
+
+title = "cloudflare-assets gitleaks config"
+
+# Allowlist files / paths that legitimately contain non-secret identifiers
+[allowlist]
+  paths = [
+    '''images-info\.json$''',         # image metadata with PIDs / user IDs
+    '''README\.md$''',
+    '''CONTEXT\.md$''',
+    '''CONTRIBUTING\.md$''',
+    '''PROGRESS\.md$''',
+  ]
+
+# Regex patterns: project-relevant secrets
+# Note: gitleaks ships with good defaults (AWS, GitHub PATs, etc.).
+# We only add custom patterns for our specific keys.
+
+[[rules]]
+id = "r2-key-id"
+description = "Cloudflare R2 Access Key ID"
+regex = '''(?i)(?:r2_key_id|R2_KEY_ID|r2-access-key-id)\s*[:=]\s*["']?([A-Za-z0-9]{20,})["']?'''
+keywords = ["r2_key_id", "R2_KEY_ID", "r2-access-key-id"]
+tags = ["cloudflare", "r2"]
+
+[[rules]]
+id = "r2-secret-key"
+description = "Cloudflare R2 Secret Access Key"
+regex = '''(?i)(?:r2_secret_key|R2_SECRET_KEY|r2-secret-access-key)\s*[:=]\s*["']?([A-Za-z0-9/+=]{30,})["']?'''
+keywords = ["r2_secret_key", "R2_SECRET_KEY", "r2-secret-access-key"]
+tags = ["cloudflare", "r2"]
+
+[[rules]]
+id = "cf-account-id"
+description = "Cloudflare Account ID (32 hex)"
+regex = '''(?i)(?:cf_account_id|CF_ACCOUNT_ID|cloudflare_account_id)\s*[:=]\s*["']?([a-f0-9]{32})["']?'''
+keywords = ["cf_account_id", "CF_ACCOUNT_ID"]
+tags = ["cloudflare"]
+
+[[rules]]
+id = "zhipu-api-key"
+description = "Zhipu AI API Key"
+regex = '''(?i)(?:zhipu_api_key|ZHIPU_API_KEY)\s*[:=]\s*["']?([A-Za-z0-9._\-]{20,})["']?'''
+keywords = ["zhipu_api_key", "ZHIPU_API_KEY"]
+tags = ["zhipu", "ai"]
+
+[[rules]]
+id = "resend-api-key"
+description = "Resend API Key (re_ prefix)"
+regex = '''re_[A-Za-z0-9]{20,}'''
+keywords = ["resend"]
+tags = ["email", "resend"]
+
+[[rules]]
+id = "smtp-password"
+description = "SMTP password / app password"
+regex = '''(?i)(?:smtp_pass|SMTP_PASS|smtp_password)\s*[:=]\s*["']?([A-Za-z0-9]{12,})["']?'''
+keywords = ["smtp_pass", "SMTP_PASS", "smtp_password"]
+tags = ["email", "smtp"]
