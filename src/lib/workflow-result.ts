@@ -3,6 +3,7 @@
 // 所有脚本用这个统一输出 workflow-result.json，供 email-notifier 读取
 
 import { writeFileSync } from 'node:fs';
+import { logger } from './logger';
 
 export interface WorkflowResult {
   success: boolean;
@@ -30,5 +31,5 @@ export function elapsed(startTime: number): string {
  */
 export function writeWorkflowResult(result: WorkflowResult): void {
   writeFileSync('workflow-result.json', JSON.stringify(result, null, 2), 'utf8');
-  console.log('[workflow-result] 已写入 workflow-result.json');
+  logger.info('[workflow-result] 已写入 workflow-result.json');
 }

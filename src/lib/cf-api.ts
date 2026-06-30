@@ -1,11 +1,13 @@
 // src/lib/cf-api.ts
 // Cloudflare REST API 客户端 — 管理 R2 / Pages / Workers 自定义域名
 
+import { logger } from './logger';
+
 const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID ?? '';
 const CF_API_TOKEN = process.env.CF_API_TOKEN ?? '';
 
 if (!CF_ACCOUNT_ID || !CF_API_TOKEN) {
-  console.error('❌ 缺少环境变量: CF_ACCOUNT_ID, CF_API_TOKEN');
+  logger.fatal('缺少环境变量: CF_ACCOUNT_ID, CF_API_TOKEN');
   process.exit(1);
 }
 
