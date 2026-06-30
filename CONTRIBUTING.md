@@ -47,6 +47,7 @@ cloudflare-assets/
 │       └── anti-slop.test.ts
 ├── dist/                               # TS 编译产物 (git ignore)
 ├── docs/                               # 项目文档
+│   ├── QUICKSTART.md                   # 新会话快速上手
 │   ├── CONTEXT.md                      # 项目背景
 │   └── PROGRESS.md                     # 工作进度日志
 ├── tsconfig.json                       # TS 编译配置
