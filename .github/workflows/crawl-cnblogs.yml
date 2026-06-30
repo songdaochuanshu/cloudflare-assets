@@ -21,6 +21,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install dependencies and build
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
+            node:20-slim \
+            bash -c "npm ci && npm run build"
+
       - name: Run crawler
         run: |
           docker run --rm \
@@ -32,14 +40,14 @@ jobs:
             -v "${{ github.workspace }}:/app" \
             -w /app \
             node:20-slim \
-            bash -c "npm install @aws-sdk/client-s3 && \
-              if [ '${{ github.event.inputs.mode }}' = 'fix_manifest' ]; then \
-                node buckets/songdaochuanshu-static/crawl-cnblogs.mjs --fix-manifest; \
-              elif [ '${{ github.event.inputs.mode }}' = 'clean_articles' ]; then \
-                node buckets/songdaochuanshu-static/crawl-cnblogs.mjs --clean-articles; \
-              else \
-                node buckets/songdaochuanshu-static/crawl-cnblogs.mjs; \
-              fi"
+            bash -c "
+              MODE='${{ github.event.inputs.mode }}'
+              case \$MODE in
+                fix_manifest) node dist/buckets/songdaochuanshu-static/crawl-cnblogs.js --fix-manifest ;;
+                clean_articles) node dist/buckets/songdaochuanshu-static/crawl-cnblogs.js --clean-articles ;;
+                *) node dist/buckets/songdaochuanshu-static/crawl-cnblogs.js ;;
+              esac
+            "
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
