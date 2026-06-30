@@ -67,4 +67,100 @@ export interface WorkflowResult {
   details: unknown[];
 }
 
-export {};
+// ===== 新增类型（Phase 2） =====
+
+/** 图片资产 */
+export interface ImageAsset {
+  id: string;
+  url: string;
+  title?: string;
+  tags: string[];
+  source: 'lolicon' | 'cnblogs' | 'manual';
+  author?: string;
+  pid?: number;
+  uid?: number;
+  r2Key: string;
+  createdAt: Date;
+  size?: number;
+  width?: number;
+  height?: number;
+}
+
+/** 博客文章 */
+export interface BlogPost {
+  id: string;
+  title: string;
+  content: string;
+  excerpt?: string;
+  tags: string[];
+  manifest: PostManifest;
+  slug: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** 文章 manifest（元信息） */
+export interface PostManifest {
+  id: string;
+  title: string;
+  date: string;
+  updated?: string;
+  tags: string[];
+  author?: string;
+  excerpt?: string;
+  mathjax?: boolean;
+  top_img?: string | boolean;
+  comments?: boolean;
+  toc?: boolean;
+}
+
+/** CDN 域名类型 */
+export type CdnDomainType = 'r2' | 'pages' | 'workers-route' | 'workers-cname';
+
+/** CDN 域名 */
+export interface CdnDomain {
+  domain: string;
+  type: CdnDomainType;
+  target: string;
+  proxied: boolean;
+}
+
+/** Workflow 执行状态 */
+export type WorkflowStatus = 'success' | 'failure' | 'skipped';
+
+/** 单步状态 */
+export type StepStatus = 'success' | 'failure' | 'skipped' | 'cancelled';
+
+/** 工作流执行结果（扩展版） */
+export interface WorkflowResultV2 {
+  workflow: string;
+  status: WorkflowStatus;
+  runId: number;
+  runUrl: string;
+  triggeredAt: Date;
+  duration?: number;
+  steps: StepResult[];
+  error?: string;
+}
+
+/** 单步结果 */
+export interface StepResult {
+  name: string;
+  status: StepStatus;
+  duration?: number;
+  output?: string;
+}
+
+/** R2 上传选项 */
+export interface UploadOptions {
+  contentType?: string;
+  metadata?: Record<string, string>;
+}
+
+/** R2 列举对象条目 */
+export interface ListedObject {
+  key: string;
+  size: number;
+  lastModified: Date;
+  etag: string;
+}
