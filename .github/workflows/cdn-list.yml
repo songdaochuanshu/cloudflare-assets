@@ -1,0 +1,31 @@
+name: CDN List Domains
+
+on:
+  workflow_dispatch:
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies and build
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
+            node:20-slim \
+            bash -c "npm ci && npm run build"
+
+      - name: List domains
+        run: |
+          docker run --rm \
+            -e CF_ACCOUNT_ID \
+            -e CF_API_TOKEN \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
+            node:20-slim \
+            node dist/scripts/cdn/list-domains.js
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
