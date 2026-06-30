@@ -1,0 +1,50 @@
+name: PR Quality
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  conventional-commit:
+    name: Commit Message Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check PR title matches conventional commits
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # 允许 squash merge 后的 title 不符合规范（因为 squash 后会丢失 scope）
+          requireScope: false
+          # 项目允许的类型
+          types: |
+            feat fix docs style refactor test chore build ci perf revert
+
+  branch-name:
+    name: Branch Naming
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check branch name
+        run: |
+          BRANCH="${GITHUB_HEAD_REF:-}"
+          echo "Branch: $BRANCH"
+          # 允许的分支名模式
+          if echo "$BRANCH" | grep -qE '^(feat|fix|docs|style|refactor|test|chore|build|ci|release)/[a-z0-9-]+$'; then
+            echo "✅ Branch name OK"
+          elif [ -z "$BRANCH" ]; then
+            echo "⚠️  Running on tag or unknown ref (skipping branch name check)"
+          else
+            echo "❌ Branch name '$BRANCH' does not follow convention."
+            echo "   Expected: <type>/<short-description>"
+            echo "   Examples: feat/add-r2-client, fix/lint-errors, chore/update-deps"
+            exit 1
+          fi
