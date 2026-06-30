@@ -21,6 +21,7 @@ cloudflare-assets/
 ├── src/                                # TypeScript 源码
 │   ├── lib/                            # 共享库（被 import，不直接运行）
 │   │   ├── r2-client.ts                # R2 操作核心 (AWS Signature V4)
+│   │   ├── cf-api.ts                   # Cloudflare API 客户端 (域名管理)
 │   │   ├── anti-slop.ts                # 反 AI 废话检测
 │   │   └── types.ts                    # 公共类型定义
 │   ├── scripts/                        # 入口脚本（独立可执行任务）
@@ -40,6 +41,9 @@ cloudflare-assets/
 │   │   │   ├── delete-all-posts.ts
 │   │   │   ├── delete-first-posts.ts
 │   │   │   └── delete-old-posts.ts
+│   │   ├── cdn/                        # CDN 域名管理
+│   │   │   ├── list-domains.ts
+│   │   │   └── sync-domains.ts
 │   │   ├── email-notifier.ts           # 邮件通知脚本
 │   │   └── send-email.ts               # 邮件发送（旧版）
 │   └── __tests__/                      # 单元测试

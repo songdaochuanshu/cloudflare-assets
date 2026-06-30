@@ -1,0 +1,13 @@
+{
+  "$schema": "域名配置文件 — sync-domains.ts 根据此文件同步 Cloudflare 自定义域名",
+  "r2": {
+    "homepage-bg": {
+      "domains": ["img-homepage.openserve.cloud"]
+    }
+  },
+  "pages": {},
+  "workers": {
+    "routes": [],
+    "domains": {}
+  }
+}

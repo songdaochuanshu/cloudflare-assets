@@ -84,6 +84,7 @@ songdaochuanshu-static/
 | `R2_STATIC_BUCKET` | 博客桶名（默认 `songdaochuanshu-static`） |
 | `ZHIPU_API_KEY` | 智谱 AI API Key（文章生成） |
 | `RESEND_API_KEY` | Resend 邮件服务 Key（通知） |
+| `CF_API_TOKEN` | Cloudflare API Token（域名管理） |
 
 ### 命名规范
 

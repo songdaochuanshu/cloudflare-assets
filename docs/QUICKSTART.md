@@ -26,6 +26,7 @@ src/
 │   ├── workflow-result.ts      工作流结果输出
 │   └── types.ts                公共类型
 ├── scripts/                    入口脚本 (独立可执行)
+│   ├── cdn/                        CDN 域名管理 (2 个脚本)
 │   ├── homepage-bg/            图片任务 (7 个脚本)
 │   ├── blog/                   博客任务 (7 个脚本)
 │   └── email-notifier.ts       邮件通知
@@ -49,6 +50,8 @@ npm run test               # 跑测试 (vitest)
 npm run crawl              # 爬 Lolicon 图片
 npm run generate-article   # AI 生成文章
 npm run crawl-cnblogs      # 爬博客园标题
+npm run cdn-list             # 列出所有 Cloudflare 自定义域名
+npm run cdn-sync             # 同步域名配置
 ```
 
 ## 环境变量
@@ -61,6 +64,7 @@ npm run crawl-cnblogs      # 爬博客园标题
 | `R2_BLOG_BUCKET` | 博客桶 (默认 songdaochuanshu-static) |
 | `ZHIPU_API_KEY` | 智谱 AI |
 | `RESEND_API_KEY` / `NOTIFY_EMAIL` | 邮件通知 |
+| `CF_API_TOKEN` | Cloudflare API Token (域名管理) |
 
 ## CI Workflows (11 个)
 

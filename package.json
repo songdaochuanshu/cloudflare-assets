@@ -24,7 +24,9 @@
     "fix-manifest-tags": "node dist/scripts/blog/fix-manifest-tags.js",
     "delete-all-posts": "node dist/scripts/blog/delete-all-posts.js",
     "delete-first-posts": "node dist/scripts/blog/delete-first-posts.js",
-    "delete-old-posts": "node dist/scripts/blog/delete-old-posts.js"
+    "delete-old-posts": "node dist/scripts/blog/delete-old-posts.js",
+    "cdn-list": "node dist/scripts/cdn/list-domains.js",
+    "cdn-sync": "node dist/scripts/cdn/sync-domains.js"
   },
   "devDependencies": {
     "@types/node": "^20.17.0",
