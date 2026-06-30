@@ -4,7 +4,10 @@ on:
   push:
     branches: [main]
     paths:
-      - 'update-images-info.mjs'
+      - 'src/buckets/homepage-bg/update-images-info.ts'
+      - 'package.json'
+      - 'tsconfig.json'
+      - 'tsconfig.build.json'
       - '.github/workflows/update-images-info.yml'
   workflow_dispatch:
 
@@ -17,6 +20,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install dependencies and build
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
+            node:20-slim \
+            bash -c "npm ci && npm run build"
+
       - name: Run update script
         run: |
           docker run --rm \
@@ -27,7 +38,7 @@ jobs:
             -v "${{ github.workspace }}:/app" \
             -w /app \
             node:20-slim \
-            node buckets/homepage-bg/update-images-info.mjs
+            node dist/buckets/homepage-bg/update-images-info.js
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}

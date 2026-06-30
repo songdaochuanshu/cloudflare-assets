@@ -9,6 +9,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install dependencies and build
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
+            node:20-slim \
+            bash -c "npm ci && npm run build"
+
       - name: Delete first 3 posts
         run: |
           docker run --rm \
@@ -19,7 +27,7 @@ jobs:
             -v "${{ github.workspace }}:/app" \
             -w /app \
             node:20-slim \
-            bash -c "npm install @aws-sdk/client-s3 && node buckets/songdaochuanshu-static/delete-first-posts.mjs"
+            node dist/buckets/songdaochuanshu-static/delete-first-posts.js
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
@@ -36,7 +44,7 @@ jobs:
             -v "${{ github.workspace }}:/app" \
             -w /app \
             node:20-slim \
-            bash -c "npm install @aws-sdk/client-s3 && node buckets/songdaochuanshu-static/crawl-cnblogs.mjs --fix-manifest"
+            node dist/buckets/songdaochuanshu-static/crawl-cnblogs.js --fix-manifest
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
@@ -54,7 +62,7 @@ jobs:
             -v "${{ github.workspace }}:/app" \
             -w /app \
             node:20-slim \
-            node utils/email-notifier.mjs
+            node dist/utils/email-notifier.js
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}

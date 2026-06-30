@@ -9,6 +9,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install dependencies and build
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
+            node:20-slim \
+            bash -c "npm ci && npm run build"
+
       - name: Delete all blog/ articles
         run: |
           docker run --rm \
@@ -19,7 +27,7 @@ jobs:
             -v "${{ github.workspace }}:/app" \
             -w /app \
             node:20-slim \
-            bash -c "npm install @aws-sdk/client-s3 && node buckets/songdaochuanshu-static/cleanup-blog.mjs"
+            node dist/buckets/songdaochuanshu-static/cleanup-blog.js
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}

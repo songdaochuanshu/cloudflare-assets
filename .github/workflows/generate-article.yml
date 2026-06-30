@@ -16,6 +16,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install dependencies and build
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
+            node:20-slim \
+            bash -c "npm ci && npm run build"
+
       - name: Generate article
         id: generate
         run: |
@@ -28,12 +36,13 @@ jobs:
             -v "${{ github.workspace }}:/app" \
             -w /app \
             node:20-slim \
-            bash -c "npm install @aws-sdk/client-s3 && \
-              if [ -z '${{ github.event.inputs.topic }}' ]; then \
-                node buckets/songdaochuanshu-static/generate-article.mjs; \
-              else \
-                node buckets/songdaochuanshu-static/generate-article.mjs '${{ github.event.inputs.topic }}'; \
-              fi"
+            bash -c "
+              if [ -z '${{ github.event.inputs.topic }}' ]; then
+                node dist/buckets/songdaochuanshu-static/generate-article.js
+              else
+                node dist/buckets/songdaochuanshu-static/generate-article.js '${{ github.event.inputs.topic }}'
+              fi
+            "
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
@@ -51,7 +60,7 @@ jobs:
             -v "${{ github.workspace }}:/app" \
             -w /app \
             node:20-slim \
-            bash -c "npm install @aws-sdk/client-s3 && node buckets/songdaochuanshu-static/crawl-cnblogs.mjs --fix-manifest"
+            node dist/buckets/songdaochuanshu-static/crawl-cnblogs.js --fix-manifest
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
@@ -69,7 +78,7 @@ jobs:
             -v "${{ github.workspace }}:/app" \
             -w /app \
             node:20-slim \
-            node utils/email-notifier.mjs
+            node dist/utils/email-notifier.js
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}

@@ -106,6 +106,27 @@
   - `generate-article.ts` 的 `let content` 优化为 `const content`（行为等价、TS 更严格）
   - `npm run typecheck` 0 错误，`npm run build` 产出 `dist/buckets/songdaochuanshu-static/*.js`
   - 旧 .mjs 文件暂未删除（按约定：阶段 4 才是清理）
+- [x] 阶段 3：CI 路径切换（11 个 workflow + package.json）
+  - 实际有 11 个 workflow（计划写 12 个，但安全扫描/security-scan.yml 和 codeql.yml 不调用项目脚本，无需改）
+  - 改动清单：
+    - `package.json` scripts：12 个 .mjs → .js
+    - `cleanup-blog.yml`：路径切换 + 加 build 步骤
+    - `crawl.yml`：路径切换 + 加 build 步骤
+    - `crawl-cnblogs.yml`：路径切换 + 加 build 步骤 + 重写 bash 条件（用 case/switch 替换 if/elif/else，便于阅读）
+    - `delete.yml`：路径切换 + 加 build 步骤
+    - `delete-all-posts.yml`：路径切换 + 加 build 步骤（2 个 step）
+    - `delete-first-posts.yml`：路径切换 + 加 build 步骤（3 个 step）
+    - `delete-old-posts.yml`：路径切换 + 加 build 步骤（2 个 step）
+    - `fix-tags.yml`：路径切换 + 加 build 步骤
+    - `generate-article.yml`：路径切换 + 加 build 步骤（4 个 step）
+    - `update-images-info.yml`：路径切换 + 加 build 步骤 + paths 触发器改为追踪 `src/.../update-images-info.ts`（不再追 .mjs，因为阶段 4 会删）
+  - 每个 workflow 新增的 build 步骤统一为：
+    ```bash
+    docker run --rm -v "${{ github.workspace }}:/app" -w /app node:20-slim \
+      bash -c "npm ci && npm run build"
+    ```
+  - 业务 step 里原本的 `npm install @aws-sdk/client-s3` 全部移除（`npm ci` 已包含 dependencies）
+  - **security-scan.yml / codeql.yml 未改**——它们不调用项目脚本，触发器里的 `**.mjs` 暂保留（阶段 4 删旧文件时再统一处理）
 
 **安全扫描接入**
 - [x] 新增 `gitleaks` 密钥扫描 workflow（`.github/workflows/security-scan.yml`）
