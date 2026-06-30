@@ -213,7 +213,7 @@ cloudflare-assets/
 - [x] security-scan.yml：paths 触发器中 `**.mjs` → `**.ts`
 - [x] README.md：重写项目结构（`src/*.ts` + `dist/*.js`）+ 加 TypeScript 技术栈 + 改本地运行示例
 - [x] CONTRIBUTING.md：更新项目结构图 + 加 TypeScript 开发规则
-- [x] docs/TS_MIGRATION_PLAN.md：标记 4 个阶段全部完成
+- [x] TS 迁移方案文档：4 个阶段全部完成（方案文件已删除）
 
 ### 未删除
 - 根目录 `images-info.json`（项目维护的桶元数据索引，由 update-images-info 脚本更新，**不是**旧残留）

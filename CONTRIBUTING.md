@@ -46,12 +46,13 @@ cloudflare-assets/
 │       ├── r2-client.test.ts
 │       └── anti-slop.test.ts
 ├── dist/                               # TS 编译产物 (git ignore)
+├── docs/                               # 项目文档
+│   ├── CONTEXT.md                      # 项目背景
+│   └── PROGRESS.md                     # 工作进度日志
 ├── tsconfig.json                       # TS 编译配置
 ├── tsconfig.build.json                 # TS 编译配置（产物用）
 ├── package.json                        # 依赖 + npm scripts
-├── CONTEXT.md                          # 项目背景
 ├── CONTRIBUTING.md                     # 开发上下文 (本文件)
-├── PROGRESS.md                         # 工作进度日志
 ├── README.md                           # 项目说明
 └── images-info.json                    # 桶元数据索引（手动维护）
 ```
@@ -100,7 +101,7 @@ cloudflare-assets/
 6. **工作流**：Docker 容器 `node:20-slim` + `npm ci` + `npm run build`，统一权限 `permissions: contents: write`
 7. **提交格式**：语义化提交（`feat:`、`fix:`、`refactor:`、`ci:`、`docs:`、`chore:`、`feat(ts):`）
 8. **环境变量**：通过 `.env` 文件或 GitHub Secrets 配置
-9. **改代码必更新文档**：`CONTEXT.md` / `PROGRESS.md` / `BACKLOG.md` 三个文件
+9. **改代码必更新文档**：`docs/CONTEXT.md` / `docs/PROGRESS.md` 两个文件
 
 ## 开发流程
 

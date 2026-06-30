@@ -182,8 +182,3 @@ node dist/scripts/blog/generate-article.js
 4. 本地 dry-run：`node dist/scripts/.../*.js`
 5. 提交并推送，CI 会自动 build + 运行
 
-## TypeScript 迁移
-
-本项目已于 2026-06-30 完成从 .mjs 到 TypeScript 的迁移（4 个阶段，0 回归）。
-
-详细迁移计划见 [`docs/TS_MIGRATION_PLAN.md`](./docs/TS_MIGRATION_PLAN.md)。
