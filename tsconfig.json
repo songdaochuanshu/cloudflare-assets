@@ -23,5 +23,5 @@
     "useUnknownInCatchVariables": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "buckets", "r2", "utils"]
+  "exclude": ["node_modules", "dist"]
 }
