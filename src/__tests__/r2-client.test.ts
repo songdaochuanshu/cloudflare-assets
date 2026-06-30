@@ -2,7 +2,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 // 在 import r2-client 前设置 env（r2-client 模块加载时调 requireEnv）
 vi.hoisted(() => {
-  process.env.CF_ACCOUNT_ID = 'test_account_id';
+  process.env.R2_ACCOUNT_ID = 'test_account_id';
   process.env.R2_KEY_ID = 'test_key_id';
   process.env.R2_SECRET_KEY = 'test_secret_key';
   process.env.R2_HOMEPAGE_BUCKET = 'test-bucket';
@@ -124,15 +124,14 @@ describe('r2-client', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
-    it('listAllKeys 在 HTTP 失败时中断', async () => {
+    it('listAllKeys 在 HTTP 失败时抛出 R2Error', async () => {
       vi.stubGlobal('fetch', vi.fn(async () => ({
         ok: false,
         status: 500,
         text: async () => 'error',
       })));
 
-      const keys = await listAllKeys();
-      expect(keys).toEqual([]);
+      await expect(listAllKeys()).rejects.toThrow('R2 list failed: HTTP 500');
     });
 
     it('listAllKeys 支持 prefix 参数', async () => {
@@ -162,15 +161,14 @@ describe('r2-client', () => {
       expect(result).toBe(true);
     });
 
-    it('uploadToR2 失败时返回 false', async () => {
+    it('uploadToR2 失败时抛出 R2Error', async () => {
       vi.stubGlobal('fetch', vi.fn(async () => ({
         ok: false,
         status: 403,
         text: async () => 'forbidden',
       })));
 
-      const result = await uploadToR2('test.jpg', Buffer.from('fake'));
-      expect(result).toBe(false);
+      await expect(uploadToR2('test.jpg', Buffer.from('fake'))).rejects.toThrow('R2 PUT failed: HTTP 403');
     });
 
     it('deleteObject 在 200/204 都返回 true', async () => {
@@ -183,14 +181,13 @@ describe('r2-client', () => {
       expect(result).toBe(true);
     });
 
-    it('deleteObject 在 404 返回 false', async () => {
+    it('deleteObject 在 404 抛出 R2Error', async () => {
       vi.stubGlobal('fetch', vi.fn(async () => ({
         ok: false,
         status: 404,
       })));
 
-      const result = await deleteObject('missing.jpg');
-      expect(result).toBe(false);
+      await expect(deleteObject('missing.jpg')).rejects.toThrow('R2 DELETE failed: HTTP 404');
     });
 
     it('deleteObject 对 key 做 URL 编码', async () => {
