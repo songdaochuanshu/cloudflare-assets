@@ -105,6 +105,21 @@
   - 原因：该 skill 是给 AI 编码 agent 用的代码审计工具，依赖 agent 编排多阶段流水线，不适合 cron 自动触发
   - 建议使用场景：等 `cdn/` 和 `workers/` 模块开发时，人工用 Claude Code 等 agent 在本地审计代码时调用
 
+**仓库安全配置**
+- [x] 仓库转为 **public** （私有仓库无 Secret scanning / Push protection 权限）
+- [x] 通过 GitHub API 启用 **Secret scanning**（密钥扫描）
+- [x] 通过 GitHub API 启用 **Push protection**（推送保护）
+  - Settings → Code security and analysis 中显示绿色 ✅ Enabled
+
+**首次 workflow 验证 & 误报修复**
+- [x] 手动触发 security-scan 和 codeql workflow
+- [x] gitleaks 首次跑报 3 个 false positive（`zhipu-api-key` 规则）
+  - 命中文件：`crawl-cnblogs.mjs` L21、`generate-article.mjs` L21、`fix-manifest-tags.mjs` L18
+  - 根因：原正则 `["']?` 可选引号，`process.env.ZHIPU_API_KEY` 被当成赋值表达式匹配，整段右侧表达式被当作 secret
+  - 修复：5 条自定义规则正则全部收紧为强制要求带引号的字符串字面量 `["']...[''"]`
+  - 验证：重跑后 0 误报，gitleaks workflow 绿色 ✅
+- [x] CodeQL Analysis 首次跑也绿色 ✅，无安全问题
+
 ### 待办
 
 - [ ] GitHub 仓库后台开启 Secret Scanning 推送告警（Settings → Code security and analysis，手动点开）
