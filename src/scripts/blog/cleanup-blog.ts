@@ -1,6 +1,7 @@
 // cleanup-blog.ts
 // 清空 R2 桶中所有 blog/ 开头的文件
 import { S3Client, ListObjectsV2Command, DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { writeWorkflowResult, elapsed } from '../../lib/workflow-result.js';
 
 const R2_ENDPOINT = `https://${process.env.CF_ACCOUNT_ID ?? ''}.r2.cloudflarestorage.com`;
 const BUCKET = process.env.R2_BLOG_BUCKET ?? 'songdaochuanshu-static';
@@ -15,7 +16,10 @@ const s3 = new S3Client({
 });
 
 async function main(): Promise<void> {
+  const startTime = Date.now();
   console.log('[cleanup-blog] 开始清空 blog/ 前缀的文件...');
+
+  let deleted = 0;
 
   // 1. 列出所有 blog/ 开头的文件
   const listCommand = new ListObjectsV2Command({
@@ -31,7 +35,6 @@ async function main(): Promise<void> {
     console.log(`[cleanup-blog] 找到 ${Contents.length} 个文件，开始删除...`);
 
     // 2. 逐个删除
-    let deleted = 0;
     for (const obj of Contents) {
       if (!obj.Key) continue;
       const deleteCommand = new DeleteObjectCommand({
@@ -60,9 +63,26 @@ async function main(): Promise<void> {
 
   await s3.send(putCommand);
   console.log('[cleanup-blog] ✅ manifest.json 已清空');
+
+  writeWorkflowResult({
+    success: true,
+    workflow: 'cleanup-blog',
+    timestamp: new Date().toISOString(),
+    duration: elapsed(startTime),
+    stats: { deleted, total: Contents?.length ?? 0 },
+    details: [],
+  });
 }
 
 main().catch((err: Error) => {
+  writeWorkflowResult({
+    success: false,
+    workflow: 'cleanup-blog',
+    timestamp: new Date().toISOString(),
+    stats: {},
+    details: [],
+    error: err.message,
+  });
   console.error('[cleanup-blog] 错误：', err.message);
   process.exit(1);
 });

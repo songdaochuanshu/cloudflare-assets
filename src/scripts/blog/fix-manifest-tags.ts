@@ -3,6 +3,7 @@
 import https from 'node:https';
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, HeadObjectCommand } from '@aws-sdk/client-s3';
 import type { _Object } from '@aws-sdk/client-s3';
+import { writeWorkflowResult, elapsed } from '../../lib/workflow-result.js';
 
 const R2_ENDPOINT = `https://${process.env.CF_ACCOUNT_ID ?? ''}.r2.cloudflarestorage.com`;
 const R2_BUCKET = process.env.R2_BLOG_BUCKET ?? 'songdaochuanshu-static';
@@ -133,6 +134,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const startTime = Date.now();
   console.log('[fix-manifest-tags] 扫描 R2 文章...');
 
   const listCmd = new ListObjectsV2Command({ Bucket: R2_BUCKET, Prefix: 'blog/', MaxKeys: 1000 });
@@ -266,9 +268,26 @@ async function main(): Promise<void> {
   await s3.send(putCmd);
 
   console.log(`[fix-manifest-tags] ✅ 完成！修复 ${fixed} 篇文章 frontmatter，manifest 共 ${manifestPosts.length} 篇`);
+
+  writeWorkflowResult({
+    success: true,
+    workflow: 'fix-manifest-tags',
+    timestamp: new Date().toISOString(),
+    duration: elapsed(startTime),
+    stats: { total: articles.length, fixed, manifest: manifestPosts.length },
+    details: manifestPosts.slice(0, 20).map(p => ({ title: p.title, category: p.category, tags: p.tags })),
+  });
 }
 
 main().catch((e: Error) => {
+  writeWorkflowResult({
+    success: false,
+    workflow: 'fix-manifest-tags',
+    timestamp: new Date().toISOString(),
+    stats: {},
+    details: [],
+    error: e.message,
+  });
   console.error('[fix-manifest-tags] 错误：', e.message);
   process.exit(1);
 });

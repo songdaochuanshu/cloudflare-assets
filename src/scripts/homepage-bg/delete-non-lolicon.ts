@@ -2,10 +2,12 @@
 // 根据 delete-pids.txt 中的 PID 列表，从 R2 删除对应图片
 import { readFileSync } from 'node:fs';
 import { bucketName, listAllKeys, deleteObject } from '../../lib/r2-client.js';
+import { writeWorkflowResult, elapsed } from '../../lib/workflow-result.js';
 
 const R2_PREFIX = 'r18/';
 
 async function main(): Promise<void> {
+  const startTime = Date.now();
   console.log('=== 非 Lolicon 图片删除工具 ===');
   console.log('Bucket: ' + bucketName);
   console.log('');
@@ -31,6 +33,14 @@ async function main(): Promise<void> {
 
   if (toDelete.length === 0) {
     console.log('没有需要删除的文件');
+    writeWorkflowResult({
+      success: true,
+      workflow: 'delete-non-lolicon',
+      timestamp: new Date().toISOString(),
+      duration: elapsed(startTime),
+      stats: { matched: 0, deleted: 0, totalR2: allKeys.length },
+      details: [],
+    });
     return;
   }
 
@@ -41,15 +51,18 @@ async function main(): Promise<void> {
   console.log('\n开始删除...');
   let deleted = 0;
   let failed = 0;
+  const details: Array<Record<string, unknown>> = [];
 
   for (const key of toDelete) {
     process.stdout.write('删除 ' + key + '... ');
     const ok = await deleteObject(key);
     if (ok) {
       console.log('OK');
+      details.push({ key, status: '已删除' });
       deleted++;
     } else {
       console.log('FAILED');
+      details.push({ key, status: '失败' });
       failed++;
     }
     await new Promise<void>(r => setTimeout(r, 100));
@@ -59,6 +72,15 @@ async function main(): Promise<void> {
   console.log('成功删除: ' + deleted + ' 个');
   console.log('删除失败: ' + failed + ' 个');
   console.log('R2 剩余文件: ' + (allKeys.length - deleted) + ' 个');
+
+  writeWorkflowResult({
+    success: failed === 0,
+    workflow: 'delete-non-lolicon',
+    timestamp: new Date().toISOString(),
+    duration: elapsed(startTime),
+    stats: { matched: toDelete.length, deleted, failed, totalR2: allKeys.length },
+    details,
+  });
 }
 
 main();

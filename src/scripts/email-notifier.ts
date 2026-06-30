@@ -63,8 +63,21 @@ function buildEmailContent(result: WorkflowResult): string {
     'crawl-lolicon': 'Lolicon 图片爬虫',
     'update-images-info': '图片元数据更新',
     'delete-images': '图片删除任务',
+    'delete-non-lolicon': '非 Lolicon 图片删除',
     'check-lolicon': '图片来源检查',
     'migrate': '数据迁移任务',
+    'cleanup-blog': '博客清空',
+    'crawl-cnblogs': '博客园文章爬取',
+    'crawl-cnblogs-clean': '博客文章清理',
+    'crawl-cnblogs-fix-manifest': '博客 Manifest 修复',
+    'generate-article': 'AI 文章生成',
+    'fix-manifest-tags': '文章标签修复',
+    'delete-all-posts': '删除所有文章',
+    'delete-first-posts': '删除前 N 篇文章',
+    'delete-old-posts': '删除旧文章',
+    'list-prefixes': 'R2 前缀列表',
+    'enrich-metadata': '图片元数据补全',
+    'fix-images-info-structure': 'images-info 结构修复',
   };
 
   const workflowDisplayName = workflowNames[workflow] || workflow;

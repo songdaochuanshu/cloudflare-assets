@@ -4,6 +4,7 @@
 import https from 'node:https';
 import { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import type { _Object } from '@aws-sdk/client-s3';
+import { writeWorkflowResult, elapsed } from '../../lib/workflow-result.js';
 
 // R2 配置
 const R2_ENDPOINT = `https://${process.env.CF_ACCOUNT_ID ?? ''}.r2.cloudflarestorage.com`;
@@ -403,6 +404,14 @@ async function main(): Promise<void> {
 
   await updateManifest();
   console.log('[crawl-cnblogs] ✅ manifest.json 已更新');
+
+  writeWorkflowResult({
+    success: true,
+    workflow: 'crawl-cnblogs',
+    timestamp: new Date().toISOString(),
+    stats: { found: links.length, existing: existingTitles.size, new: targetUrl ? 1 : 0 },
+    details: targetUrl ? [{ title, url: targetUrl, category, tags, status: '已上传' }] : [],
+  });
 }
 
 // 批量清理文章的爬取痕迹
@@ -457,32 +466,39 @@ async function cleanArticles(): Promise<void> {
 // 命令行参数处理
 if (process.argv.includes('--clean-articles')) {
   (async () => {
+    const startTime = Date.now();
     console.log('[crawl-cnblogs] --clean-articles 模式：批量清理爬取痕迹');
     try {
       await cleanArticles();
       console.log('[crawl-cnblogs] ✅ 文章清理完成');
+      writeWorkflowResult({ success: true, workflow: 'crawl-cnblogs-clean', timestamp: new Date().toISOString(), duration: elapsed(startTime), stats: {}, details: [] });
       process.exit(0);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      writeWorkflowResult({ success: false, workflow: 'crawl-cnblogs-clean', timestamp: new Date().toISOString(), stats: {}, details: [], error: msg });
       console.error('[crawl-cnblogs] 错误：', msg);
       process.exit(1);
     }
   })();
 } else if (process.argv.includes('--fix-manifest')) {
   (async () => {
+    const startTime = Date.now();
     console.log('[crawl-cnblogs] --fix-manifest 模式：只修复 manifest.json');
     try {
       await updateManifest();
       console.log('[crawl-cnblogs] ✅ manifest.json 已修复');
+      writeWorkflowResult({ success: true, workflow: 'crawl-cnblogs-fix-manifest', timestamp: new Date().toISOString(), duration: elapsed(startTime), stats: {}, details: [] });
       process.exit(0);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      writeWorkflowResult({ success: false, workflow: 'crawl-cnblogs-fix-manifest', timestamp: new Date().toISOString(), stats: {}, details: [], error: msg });
       console.error('[crawl-cnblogs] 错误：', msg);
       process.exit(1);
     }
   })();
 } else {
   main().catch((err: Error) => {
+    writeWorkflowResult({ success: false, workflow: 'crawl-cnblogs', timestamp: new Date().toISOString(), stats: {}, details: [], error: err.message });
     console.error('[crawl-cnblogs] 错误：', err.message);
     process.exit(1);
   });

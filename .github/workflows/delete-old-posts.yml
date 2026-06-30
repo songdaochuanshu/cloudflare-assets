@@ -58,3 +58,21 @@ jobs:
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
           R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
           R2_BLOG_BUCKET: ${{ secrets.R2_BLOG_BUCKET }}
+
+      - name: Send email notification
+        if: always()
+        run: |
+          docker run --rm \
+            -e RESEND_API_KEY \
+            -e NOTIFY_EMAIL \
+            -e WORKFLOW_NAME \
+            -e WORKFLOW_STATUS \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
+            node:20-slim \
+            node dist/scripts/email-notifier.js
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+          WORKFLOW_NAME: 'delete-old-posts'
+          WORKFLOW_STATUS: ${{ job.status }}

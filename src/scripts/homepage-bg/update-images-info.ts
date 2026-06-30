@@ -3,10 +3,12 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { host, bucketName, cdnBase, listAllKeys, uploadToR2 } from '../../lib/r2-client.js';
 import type { ImageEntry, ImagesInfo } from '../../lib/types.js';
+import { writeWorkflowResult, elapsed } from '../../lib/workflow-result.js';
 
 const customDomain = cdnBase;
 
 async function main(): Promise<void> {
+  const startTime = Date.now();
   console.log('=== R2 图片链接更新工具 ===');
   console.log('Bucket: ' + bucketName);
   console.log('');
@@ -84,6 +86,21 @@ async function main(): Promise<void> {
   console.log('\n前 5 条示例 (normal):');
   (imagesInfo.normal || []).slice(0, 5).forEach((img: ImageEntry) => {
     console.log(`  PID: ${img.pid}, File: ${img.filename}, URL: ${img.url}`);
+  });
+
+  writeWorkflowResult({
+    success: ok,
+    workflow: 'update-images-info',
+    timestamp: new Date().toISOString(),
+    duration: elapsed(startTime),
+    stats: {
+      r18: r18Images.length,
+      normal: normalImages.length,
+      total: r18Images.length + normalImages.length,
+      totalR2: allKeys.length,
+      uploaded: ok ? 1 : 0,
+    },
+    details: [],
   });
 }
 
