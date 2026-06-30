@@ -1,5 +1,9 @@
 # Cloudflare Assets
 
+![Tests](https://img.shields.io/badge/tests-29%20passed-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-76.9%25-brightgreen)
+![ESLint](https://img.shields.io/badge/ESLint-0%20errors-blue)
+
 Cloudflare 资产管理工具集。包含 R2 图片管理和博客文章系统，未来扩展 CDN、Workers 等。
 
 ## 项目结构
