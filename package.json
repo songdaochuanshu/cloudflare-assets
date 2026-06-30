@@ -1,6 +1,6 @@
 {
   "name": "cloudflare-assets",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "Cloudflare R2 资产管理工具集（图片爬取 + AI 博客生成）",
