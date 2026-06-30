@@ -27,6 +27,7 @@ Cloudflare 资产管理工具集，包含两个核心模块：
 8. **AI 文章生成**：智谱 GLM-4-Flash 生成文章，anti-slop 模块评分过滤
 9. **按桶分目录**：`buckets/` 下按 R2 桶名组织脚本，共享模块在 `r2/` 和 `utils/`
 10. **Docker CI**：所有工作流使用 `node:20-slim` 容器运行，避免 `setup-node@v4` 兼容性问题
+11. **TypeScript 迁移**（2026-06-30 起）：源码用 `.ts` 写在 `src/`，编译产出 `.js` 到 `dist/`；保留 `buckets/` 下旧 `.mjs` 作为过渡期兜底，阶段 4 统一清理；选用「先编译再跑」而非 tsx/ts-node，理由：保持产物纯净、不污染运行时依赖、Actions 仍用 `node` 直接调用
 
 ## 数据流
 
