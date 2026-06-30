@@ -335,3 +335,101 @@ cloudflare-assets/
 | #7 | cdn/workers 模块 | 全新 | 中 | 拓展产品能力 |
 | #8 | 错误处理统一 | 1h | 中 | 减少重复代码 |
 | #9 | images-info 拆分 | 2h | 低 | 仓库历史控制 |
+
+## 2026-06-30
+
+### 改进 #3 — 单元测试起步
+
+**目标**：核心纯函数（anti-slop / r2-client）建立基础测试覆盖，**为后续重构提供安全网**。
+
+#### 完成的工作
+
+| 任务 | 状态 |
+|------|------|
+| 安装 vitest（44 个 dev 包） | ✅ |
+| 创建 `vitest.config.ts`（含 coverage 配置） | ✅ |
+| 写 `src/utils/anti-slop.test.ts`（12 个测试） | ✅ |
+| 写 `src/r2/r2-client.test.ts`（17 个测试） | ✅ |
+| `npm run typecheck` 0 错误 | ✅ |
+| `npm run build` 成功 | ✅ |
+| `npm run test` 29/29 全过 | ✅ |
+| 加 `test` / `test:watch` / `test:coverage` 脚本 | ✅ |
+| 新建 `.github/workflows/test.yml`（独立 test workflow） | ✅ |
+
+#### 测试覆盖明细
+
+**`src/utils/anti-slop.ts`（12 个测试）**
+- 删除 AI 结尾套话
+- 删除"总之"类总结句
+- 删除开场白"大家好"
+- 删除"今天我们来聊"开场白
+- 压缩连续感叹号
+- 压缩连续逗号
+- 保留正常正文不动
+- 空字符串处理
+- 返回值结构正确
+- score 在 0-100 范围内
+- AI 风格 vs 正常文本分数对比
+- 空文本分数
+
+**`src/r2/r2-client.ts`（17 个测试）**
+- 纯函数（8 个）：
+  - emptyPayloadHash 正确
+  - host 拼接
+  - formatDate AWS 格式
+  - getSignatureKey Buffer 长度 32
+  - getSignatureKey 确定性
+  - getSignatureKey 不同日期输出不同
+  - signRequest authorization 字段
+  - signRequest 带 extraHeaders
+- 网络操作（9 个，用 mock fetch）：
+  - listAllKeys XML 解析
+  - listAllKeys IsTruncated=false 停止
+  - listAllKeys HTTP 失败中断
+  - listAllKeys prefix 参数
+  - uploadToR2 成功/失败
+  - deleteObject 200/204/404
+  - deleteObject URL 编码
+
+#### 关键决策
+
+1. **为什么不用 `@aws-sdk/client-s3` 删掉**？
+   - `r2-client.ts` 是手写 AWS Signature V4，**不依赖** AWS SDK
+   - 保留是为了表明「零外部依赖可工作」
+   - `package.json` 里的 `@aws-sdk/client-s3` 实际未使用，可在后续阶段清理
+
+2. **为什么 vi.fn 不指定签名类型**？
+   - vi.fn() 的默认签名是 `[]`，所以 `.mock.calls[0]` 是 unknown
+   - 用 helper `getFetchedUrl()` + `String()` 兜底，比 `as string` cast 更安全
+   - 避免 TS2352 类型错误
+
+3. **为什么用 `vi.hoisted()` 设置 env**？
+   - `r2-client.ts` 模块加载时立刻调 `requireEnv` 抛错
+   - `vi.hoisted()` 在所有 import 之前执行
+   - 比 setup file 更内聚
+
+4. **为什么不改业务 workflow 加 test 步骤**？
+   - 10 个业务 workflow 跑测试会让每次 CI 慢 30+ 分钟
+   - 独立 `test.yml` 只在 push/PR 触发，更轻
+   - 业务 workflow 已经跑 typecheck + build（#1），足够保证不破构建
+
+#### 覆盖率（潜在目标）
+
+- `anti-slop.ts`：~80%（纯函数，容易测）
+- `r2-client.ts`：~60%（含网络操作部分）
+
+实际覆盖率需 `npm run test:coverage` 跑出（v8 provider）。
+
+#### 后续可扩展
+
+- `email-notifier.ts`：需要重构暴露 `buildEmailContent` 为 export 才能测
+- `crawl-lolicon.ts` / `crawl-cnblogs.ts` 等业务脚本：集成测试，CI 环境难复现
+- `tsconfig.build.json` 已配 `rootDir: "./src"`，测试文件不会被编译进 `dist/`
+
+#### 文件清单
+
+- 新增：`vitest.config.ts`
+- 新增：`src/utils/anti-slop.test.ts`
+- 新增：`src/r2/r2-client.test.ts`
+- 新增：`.github/workflows/test.yml`
+- 修改：`package.json`（devDeps + scripts）
