@@ -91,6 +91,7 @@
 
 **TypeScript 迁移**
 - [x] 阶段 0：基础设施搭建（package.json / tsconfig.json / .gitignore）
+- [x] 阶段 1：基础设施模块迁移（r2-client / anti-slop / email-notifier / send-email）
 
 **安全扫描接入**
 - [x] 新增 `gitleaks` 密钥扫描 workflow（`.github/workflows/security-scan.yml`）

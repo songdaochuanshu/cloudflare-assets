@@ -228,9 +228,9 @@ cloudflare-assets/
    ```
 
 **验收**：
-- [ ] `npm run typecheck` 对 4 个基础设施文件**0 错误**
-- [ ] `npm run build` 产出 `dist/r2/r2-client.mjs` 等 4 个文件
-- [ ] 旧 .mjs 文件**暂时保留**，workflow 暂时不改，先验证产物可独立运行
+- [x] `npm run typecheck` 对 4 个基础设施文件**0 错误**
+- [x] `npm run build` 产出 `dist/r2/r2-client.mjs` 等 4 个文件
+- [x] 旧 .mjs 文件**暂时保留**，workflow 暂时不改，先验证产物可独立运行
 
 ---
 
