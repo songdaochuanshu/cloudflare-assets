@@ -9,9 +9,7 @@ const BATCH_SIZE = 10; // 每批处理 10 张
 const DELAY_MS = 1000; // 每次请求间隔 1 秒（避免被限流）
 
 // 从 Pixiv oEmbed API 获取图片信息（无需登录）
-async function fetchPixivMetadata(
-  pid: number,
-): Promise<{
+async function fetchPixivMetadata(pid: number): Promise<{
   title: string;
   author: string;
   width: number;
