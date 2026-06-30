@@ -3,8 +3,8 @@
 // r18=1 的图片放 r18/，r18=0 的图片放 normal/
 // 每次运行 5 分钟，每隔 15-20 秒随机下载一张
 import { writeFileSync, readFileSync } from 'node:fs';
-import { bucketName, listAllKeys, uploadToR2 } from '../../r2/r2-client.js';
-import type { LoliconResponse, LoliconImage, WorkflowResult } from '../../types/env.js';
+import { bucketName, listAllKeys, uploadToR2 } from '../../lib/r2-client.js';
+import type { LoliconResponse, LoliconImage, WorkflowResult } from '../../lib/types.js';
 
 interface PendingItem {
   r2Key: string;

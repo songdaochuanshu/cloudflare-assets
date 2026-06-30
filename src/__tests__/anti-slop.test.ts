@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { removeAISlop, scoreContent } from './anti-slop.js';
+import { removeAISlop, scoreContent } from '../lib/anti-slop.js';
 
 describe('anti-slop', () => {
   describe('removeAISlop', () => {

@@ -1,7 +1,7 @@
 // delete-images.ts
 // 从 R2 删除指定的图片文件
 import { readFileSync } from 'node:fs';
-import { deleteObject } from '../../r2/r2-client.js';
+import { deleteObject } from '../../lib/r2-client.js';
 
 const R2_PREFIX = 'r18/';
 

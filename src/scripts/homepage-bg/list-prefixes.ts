@@ -1,6 +1,6 @@
 // list-prefixes.ts
 // 列出 R2 桶中所有前缀
-import { host, emptyPayloadHash, signRequest } from '../../r2/r2-client.js';
+import { host, emptyPayloadHash, signRequest } from '../../lib/r2-client.js';
 
 async function main(): Promise<void> {
   const { authorization, amzDate } = signRequest('GET', '/', 'list-type=2&delimiter=/&max-keys=1000', emptyPayloadHash, new Date());

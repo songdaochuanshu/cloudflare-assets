@@ -2,7 +2,7 @@
 // 补全 images-info.json 中的图片元数据（title, author, width, height, tags）
 // 通过 Pixiv oEmbed API 获取（无需登录）
 import { readFileSync, writeFileSync } from 'node:fs';
-import type { ImageEntry, ImagesInfo, PixivOEmbed } from '../../types/env.js';
+import type { ImageEntry, ImagesInfo, PixivOEmbed } from '../../lib/types.js';
 
 const IMAGES_INFO_PATH = './images-info.json';
 const BATCH_SIZE = 10; // 每批处理 10 张

@@ -17,7 +17,7 @@ import {
   deleteObject,
   emptyPayloadHash,
   host,
-} from './r2-client.js';
+} from '../lib/r2-client.js';
 
 // 工具：从 mock 中拿到 fetch 调用 URL（vi.fn 未指定签名时类型是 []，用 String() 兜底）
 function getFetchedUrl(mock: ReturnType<typeof vi.fn>): string {

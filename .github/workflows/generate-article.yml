@@ -46,9 +46,9 @@ jobs:
             node:20-slim \
             bash -c "
               if [ -z '${{ github.event.inputs.topic }}' ]; then
-                node dist/buckets/songdaochuanshu-static/generate-article.js
+                node dist/scripts/blog/generate-article.js
               else
-                node dist/buckets/songdaochuanshu-static/generate-article.js '${{ github.event.inputs.topic }}'
+                node dist/scripts/blog/generate-article.js '${{ github.event.inputs.topic }}'
               fi
             "
         env:
@@ -68,7 +68,7 @@ jobs:
             -v "${{ github.workspace }}:/app" \
             -w /app \
             node:20-slim \
-            node dist/buckets/songdaochuanshu-static/crawl-cnblogs.js --fix-manifest
+            node dist/scripts/blog/crawl-cnblogs.js --fix-manifest
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
@@ -86,7 +86,7 @@ jobs:
             -v "${{ github.workspace }}:/app" \
             -w /app \
             node:20-slim \
-            node dist/utils/email-notifier.js
+            node dist/scripts/email-notifier.js
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}

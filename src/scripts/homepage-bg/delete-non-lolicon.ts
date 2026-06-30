@@ -1,7 +1,7 @@
 // delete-non-lolicon.ts
 // 根据 delete-pids.txt 中的 PID 列表，从 R2 删除对应图片
 import { readFileSync } from 'node:fs';
-import { bucketName, listAllKeys, deleteObject } from '../../r2/r2-client.js';
+import { bucketName, listAllKeys, deleteObject } from '../../lib/r2-client.js';
 
 const R2_PREFIX = 'r18/';
 

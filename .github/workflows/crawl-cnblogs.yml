@@ -51,9 +51,9 @@ jobs:
             bash -c "
               MODE='${{ github.event.inputs.mode }}'
               case \$MODE in
-                fix_manifest) node dist/buckets/songdaochuanshu-static/crawl-cnblogs.js --fix-manifest ;;
-                clean_articles) node dist/buckets/songdaochuanshu-static/crawl-cnblogs.js --clean-articles ;;
-                *) node dist/buckets/songdaochuanshu-static/crawl-cnblogs.js ;;
+                fix_manifest) node dist/scripts/blog/crawl-cnblogs.js --fix-manifest ;;
+                clean_articles) node dist/scripts/blog/crawl-cnblogs.js --clean-articles ;;
+                *) node dist/scripts/blog/crawl-cnblogs.js ;;
               esac
             "
         env:

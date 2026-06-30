@@ -1,8 +1,8 @@
 // update-images-info.ts
 // 从 R2 homepage-bg 桶列出所有图片，生成/覆盖 images-info.json，并上传到 R2
 import { readFileSync, writeFileSync } from 'node:fs';
-import { host, bucketName, cdnBase, listAllKeys, uploadToR2 } from '../../r2/r2-client.js';
-import type { ImageEntry, ImagesInfo } from '../../types/env.js';
+import { host, bucketName, cdnBase, listAllKeys, uploadToR2 } from '../../lib/r2-client.js';
+import type { ImageEntry, ImagesInfo } from '../../lib/types.js';
 
 const customDomain = cdnBase;
 

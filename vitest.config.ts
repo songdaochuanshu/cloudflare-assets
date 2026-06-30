@@ -9,8 +9,8 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html'],
       include: [
-        'src/utils/anti-slop.ts',
-        'src/r2/r2-client.ts',
+        'src/lib/anti-slop.ts',
+        'src/lib/r2-client.ts',
       ],
     },
   },

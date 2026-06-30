@@ -433,3 +433,64 @@ cloudflare-assets/
 - 新增：`src/r2/r2-client.test.ts`
 - 新增：`.github/workflows/test.yml`
 - 修改：`package.json`（devDeps + scripts）
+
+### 改进 #4 — 目录结构重构
+
+**目标**：消除 `buckets/` 按桶名组织代码的反模式，改为按职责分层（lib / scripts / tests）。
+
+#### 重构前后对比
+
+```
+# 之前（按 R2 桶名组织）
+src/
+├── r2/r2-client.ts
+├── utils/anti-slop.ts
+├── types/env.d.ts
+└── buckets/
+    ├── homepage-bg/           ← R2 桶名泄漏到代码结构
+    └── songdaochuanshu-static/
+
+# 之后（按职责分层）
+src/
+├── lib/                       ← 共享库（被 import）
+│   ├── r2-client.ts
+│   ├── anti-slop.ts
+│   └── types.ts
+├── scripts/                   ← 入口脚本（独立可执行任务）
+│   ├── homepage-bg/
+│   └── blog/                  ← 用人能读懂的名字
+└── __tests__/                 ← 测试
+```
+
+#### 完成的工作
+
+| 任务 | 状态 |
+|------|------|
+| `src/buckets/homepage-bg/` → `src/scripts/homepage-bg/` | ✅ |
+| `src/buckets/songdaochuanshu-static/` → `src/scripts/blog/` | ✅ |
+| `src/r2/` + `src/utils/` + `src/types/` → `src/lib/` | ✅ |
+| 测试文件移至 `src/__tests__/` | ✅ |
+| 更新所有 import 路径 | ✅ |
+| 更新 vitest.config.ts coverage 路径 | ✅ |
+| 更新 package.json scripts 路径 | ✅ |
+| 更新 11 个 CI workflow dist/ 路径 | ✅ |
+| 删除空占位目录 cdn/、workers/ | ✅ |
+| 更新 README.md 项目结构 | ✅ |
+| 更新 CONTRIBUTING.md 项目结构 | ✅ |
+| `npm run typecheck` 0 错误 | ✅ |
+| `npm run test` 29/29 全过 | ✅ |
+
+#### 设计决策
+
+1. **为什么 `scripts/blog/` 而不是 `scripts/songdaochuanshu-static/`**？
+   - 代码按"做什么"组织，不是按"放哪个桶"
+   - 桶名是部署细节，改桶名不该改目录名
+   - `blog` 比 `songdaochuanshu-static` 好读 10 倍
+
+2. **为什么 `lib/` 而不是 `utils/` + `r2/`**？
+   - 所有被 import 的库代码放一个目录，职责清晰
+   - `utils/` 是个垃圾抽屉命名，不如 `lib/` 明确
+
+3. **为什么删 `cdn/` 和 `workers/`**？
+   - 空目录占位没意义，真要写 Workers 时再建
+   - Workers 是独立部署单元，不该跟脚本混在一起

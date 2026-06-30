@@ -43,7 +43,7 @@ jobs:
             -v "${{ github.workspace }}:/app" \
             -w /app \
             node:20-slim \
-            node dist/buckets/homepage-bg/crawl-lolicon.js
+            node dist/scripts/homepage-bg/crawl-lolicon.js
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
@@ -61,7 +61,7 @@ jobs:
             -v "${{ github.workspace }}:/app" \
             -w /app \
             node:20-slim \
-            node dist/utils/email-notifier.js
+            node dist/scripts/email-notifier.js
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}

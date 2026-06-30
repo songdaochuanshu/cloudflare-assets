@@ -28,7 +28,7 @@ jobs:
           docker run --rm \
             -e CF_ACCOUNT_ID -e R2_KEY_ID -e R2_SECRET_KEY -e R2_BLOG_BUCKET -e ZHIPU_API_KEY \
             -v "${{ github.workspace }}:/app" -w /app node:20-slim \
-            node dist/buckets/songdaochuanshu-static/fix-manifest-tags.js
+            node dist/scripts/blog/fix-manifest-tags.js
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}

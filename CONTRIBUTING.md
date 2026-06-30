@@ -19,37 +19,32 @@ cloudflare-assets/
 │       ├── security-scan.yml
 │       └── codeql.yml
 ├── src/                                # TypeScript 源码
-│   ├── types/
-│   │   └── env.d.ts                    # 环境变量 / 公共类型
-│   ├── r2/
-│   │   └── r2-client.ts                # R2 操作核心 (AWS Signature V4)
-│   ├── utils/
+│   ├── lib/                            # 共享库（被 import，不直接运行）
+│   │   ├── r2-client.ts                # R2 操作核心 (AWS Signature V4)
 │   │   ├── anti-slop.ts                # 反 AI 废话检测
-│   │   ├── email-notifier.ts           # 邮件通知 (Resend API)
-│   │   └── send-email.ts               # 邮件发送底层
-│   └── buckets/
-│       ├── homepage-bg/                # 图片存储桶 (img-homepage.openserve.cloud)
-│       │   ├── crawl-lolicon.ts        # Lolicon API 爬虫
-│       │   ├── delete-images.ts        # 批量删除图片
-│       │   ├── delete-non-lolicon.ts   # 删除非 Lolicon 来源图片
-│       │   ├── enrich-metadata.ts      # 元数据补全
-│       │   ├── fix-images-info-structure.ts  # 修复 images-info.json 结构
-│       │   ├── list-prefixes.ts        # 列出 R2 前缀
-│       │   └── update-images-info.ts   # 更新 images-info.json
-│       └── songdaochuanshu-static/     # 博客存储桶 (songdaochuanshu.com)
-│           ├── articles/               # 博客园爬取的文章
-│           ├── posts/                  # AI 生成的文章
-│           ├── cleanup-blog.ts
-│           ├── crawl-cnblogs.ts
-│           ├── delete-all-posts.ts
-│           ├── delete-first-posts.ts
-│           ├── delete-old-posts.ts
-│           ├── fix-manifest-tags.ts
-│           └── generate-article.ts
-├── cdn/                                # CDN 配置 (Workers 路由等)
-│   └── .gitkeep
-├── workers/                            # Cloudflare Workers 脚本
-│   └── .gitkeep
+│   │   └── types.ts                    # 公共类型定义
+│   ├── scripts/                        # 入口脚本（独立可执行任务）
+│   │   ├── homepage-bg/                # 图片存储桶任务
+│   │   │   ├── crawl-lolicon.ts
+│   │   │   ├── delete-images.ts
+│   │   │   ├── delete-non-lolicon.ts
+│   │   │   ├── enrich-metadata.ts
+│   │   │   ├── fix-images-info-structure.ts
+│   │   │   ├── list-prefixes.ts
+│   │   │   └── update-images-info.ts
+│   │   ├── blog/                       # 博客任务
+│   │   │   ├── crawl-cnblogs.ts
+│   │   │   ├── generate-article.ts
+│   │   │   ├── cleanup-blog.ts
+│   │   │   ├── fix-manifest-tags.ts
+│   │   │   ├── delete-all-posts.ts
+│   │   │   ├── delete-first-posts.ts
+│   │   │   └── delete-old-posts.ts
+│   │   ├── email-notifier.ts           # 邮件通知脚本
+│   │   └── send-email.ts               # 邮件发送（旧版）
+│   └── __tests__/                      # 单元测试
+│       ├── r2-client.test.ts
+│       └── anti-slop.test.ts
 ├── dist/                               # TS 编译产物 (git ignore)
 ├── tsconfig.json                       # TS 编译配置
 ├── tsconfig.build.json                 # TS 编译配置（产物用）
@@ -65,27 +60,27 @@ cloudflare-assets/
 
 ## 核心模块
 
-### R2 签名模块 (`src/r2/r2-client.ts`)
+### R2 签名模块 (`src/lib/r2-client.ts`)
 - AWS Signature V4 签名
 - Content-Type 签名修复
 - 环境变量：`CF_ACCOUNT_ID`, `R2_KEY_ID`, `R2_SECRET_KEY`
 - 优先用 `@aws-sdk/client-s3`（已在 dependencies），手写 Sig V4 作为兜底
 
-### 图片管理 (`src/buckets/homepage-bg/`)
+### 图片管理 (`src/scripts/homepage-bg/`)
 - 桶：`homepage-bg`
 - 域名：`img-homepage.openserve.cloud`
 - 分类：`normal/`（普通）和 `r18/`（成人）
 - 来源：Lolicon API (`r18=1`)
 - 元数据：`images-info.json`（含 `normal` 和 `r18` 数组）
 
-### 博客系统 (`src/buckets/songdaochuanshu-static/`)
+### 博客系统 (`src/scripts/blog/`)
 - 桶：`songdaochuanshu-static`
 - 域名：`songdaochuanshu.com`
 - 爬虫：博客园文章爬取
 - 生成：GLM-4-Flash (智谱AI) 生成新文章
 - 检测：反 AI 废话（4 个维度评分）
 
-### 邮件通知 (`src/utils/`)
+### 邮件通知 (`src/scripts/`)
 - Resend API（替代原 QQ 邮箱 SMTP）
 - 环境变量：`RESEND_API_KEY`, `NOTIFY_EMAIL`
 
@@ -111,7 +106,7 @@ cloudflare-assets/
 
 ```bash
 # 1. 改 src/ 下的 .ts 文件
-vim src/buckets/homepage-bg/crawl-lolicon.ts
+vim src/scripts/homepage-bg/crawl-lolicon.ts
 
 # 2. 类型检查
 npm run typecheck  # 必须是 0 错误

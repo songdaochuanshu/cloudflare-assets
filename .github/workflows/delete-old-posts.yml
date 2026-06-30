@@ -35,7 +35,7 @@ jobs:
             -v "${{ github.workspace }}:/app" \
             -w /app \
             node:20-slim \
-            node dist/buckets/songdaochuanshu-static/delete-old-posts.js
+            node dist/scripts/blog/delete-old-posts.js
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}
@@ -52,7 +52,7 @@ jobs:
             -v "${{ github.workspace }}:/app" \
             -w /app \
             node:20-slim \
-            node dist/buckets/songdaochuanshu-static/crawl-cnblogs.js --fix-manifest
+            node dist/scripts/blog/crawl-cnblogs.js --fix-manifest
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}

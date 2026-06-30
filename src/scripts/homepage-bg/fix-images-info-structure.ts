@@ -1,7 +1,7 @@
 // fix-images-info-structure.ts
 // 将 images-info.json 从扁平数组转换为分类结构 { r18: [...], normal: [...] }
 import { readFileSync, writeFileSync } from 'node:fs';
-import type { ImageEntry, ImagesInfo } from '../../types/env.js';
+import type { ImageEntry, ImagesInfo } from '../../lib/types.js';
 
 const INPUT_PATH = './images-info.json';
 const OUTPUT_PATH = './images-info.json';

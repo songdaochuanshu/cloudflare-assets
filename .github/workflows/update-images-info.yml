@@ -46,7 +46,7 @@ jobs:
             -v "${{ github.workspace }}:/app" \
             -w /app \
             node:20-slim \
-            node dist/buckets/homepage-bg/update-images-info.js
+            node dist/scripts/homepage-bg/update-images-info.js
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_KEY_ID: ${{ secrets.R2_KEY_ID }}

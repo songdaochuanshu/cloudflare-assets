@@ -4,7 +4,7 @@
 import https from 'node:https';
 import { writeFileSync } from 'node:fs';
 import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, HeadObjectCommand } from '@aws-sdk/client-s3';
-import { removeAISlop } from '../../utils/anti-slop.js';
+import { removeAISlop } from '../../lib/anti-slop.js';
 
 // R2 配置
 const R2_ENDPOINT = `https://${process.env.CF_ACCOUNT_ID ?? ''}.r2.cloudflarestorage.com`;
