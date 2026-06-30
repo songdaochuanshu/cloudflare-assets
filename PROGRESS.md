@@ -231,3 +231,107 @@ cloudflare-assets/
 - 阶段 2B：博客桶 7 个 .mjs → .ts
 - 阶段 3：11 个 GitHub Actions workflow 切换到 dist/ 路径
 - 阶段 4：清理 18 个旧 .mjs + 文档同步
+
+
+## 2026-06-30
+
+### 项目复盘 — 改进建议清单
+
+完成 TypeScript 迁移后（阶段 0-4 全部完成，crawl workflow 阶段 3+4 后**首次运行验证成功**），系统性复盘项目现状，整理出 10 项改进建议。
+
+#### ✅ 当前强项
+- TS 迁移完整（0-4 阶段），`dist/` 产物可用
+- 共享模块（r2-client / anti-slop / email-notifier）抽取得当
+- 工作流统一 Docker `node:20-slim` + build 步骤
+- 安全扫描齐全（gitleaks + CodeQL）
+- 文档体系（CONTEXT / PROGRESS / README / CONTRIBUTING）结构清晰
+
+#### 🔴 高优先级（建议 1-2 周内做）
+
+**#1 CI 缺少 typecheck 检查**
+- 现状：CI 跑 `npm run build`，但 typecheck 单独跑才能在改 `.ts` 时早发现
+- 建议：在所有业务 workflow 加一步 `npm run typecheck`（在 build 前）
+- 工作量：15 分钟
+- 风险：0
+
+**#2 `tsconfig.build.json` 没显式设 rootDir**
+- 现状：`tsc -p tsconfig.build.json` 没设 `rootDir`
+- 风险：源码位置变了产物路径会变，触发 12 个 workflow 全失效
+- 建议：显式设 `"rootDir": "src"`
+- 工作量：2 分钟
+- 风险：0
+
+#### 🟡 中优先级（建议本月内做）
+
+**#3 单元测试覆盖率为 0**
+- 现状：14 个 .ts 业务脚本，**0 单元测试**
+- 风险：重构无保护，新需求上线容易回归
+- 建议：
+  - 优先测**纯函数**：`utils/anti-slop.ts`、`utils/email-notifier.ts`、`r2/r2-client.ts`（mock 掉 AWS SDK）
+  - 用 **vitest**（与 TS 配置最顺）
+  - 目标：核心函数 60%+ 覆盖率
+- 工作量：3-4h
+- 风险：低
+
+**#4 本地开发文档缺失**
+- 现状：本地开发者怎么跑脚本不清楚
+- 建议：补一个 `docs/LOCAL_DEV.md`，列出 8 个 env var + `npm run <script>`
+- 工作量：30 分钟
+- 风险：0
+
+**#5 workflow 缺少 dispatch 输入参数化**
+- 现状：手动 dispatch 时无法指定 R18 / normal / 数量
+- 建议：用 `inputs:` 加 3-4 个字段（`mode` / `count` / `r18`）
+- 工作量：30 分钟
+- 风险：0
+
+#### 🟢 低优先级（建议下个迭代做）
+
+**#6 CORS / CDN 缓存策略缺失**
+- 现状：R2 公开访问，但没看到 `Cache-Control` 头
+- 影响：每次都回 R2，CF 边缘缓存没起作用，费用和延迟都不优
+- 建议：
+  - 写一个 `cdn/cache-policies.ts`，定义每类资产的 `max-age` / `stale-while-revalidate`
+  - 配合 `cdn/` 模块一起做
+- 工作量：1h（含文档）
+- 风险：中
+
+**#7 CDN / Workers 模块还是空目录**
+- 现状：`cdn/` 和 `workers/` 只有 `.gitkeep`
+- 建议：下个迭代方向——CDN 配置管理 + Workers 脚本
+- 优先级：中等
+- 工作量：全新模块
+- 风险：中
+
+**#8 错误处理不统一**
+- 现状：脚本里散落 `process.exit(1)` / `throw new Error()` / 邮件通知
+- 建议：在 `src/utils/errors.ts` 抽一个 `failWithEmail()` 统一出口（业务 + 邮件通知）
+- 工作量：1h
+- 风险：中
+
+#### ⚪ 远期（暂不规划）
+
+**#9 `images-info.json` 27KB 提交到仓库**
+- 现状：根目录的 `images-info.json` 进 git，每次爬完都更新
+- 影响：git 历史会越来越大
+- 建议：
+  - 短期：OK，27KB 不算大
+  - 长期：如果图片到 1000+，考虑存 R2 metadata，仓库只放 schema
+- 工作量：2h
+- 风险：低
+
+#### 🎯 推荐执行顺序
+
+如果只能选 3 个：**#1（CI typecheck）** + **#2（rootDir 显式化）** + **#3（单元测试起步）**
+
+| 序号 | 改进项 | 工作量 | 风险 | 预期收益 |
+|------|------|------|------|------|
+| #1 | CI typecheck | 15 分钟 | 0 | 提早发现类型错误 |
+| #2 | rootDir 显式化 | 2 分钟 | 0 | 防 workflow 路径漂移 |
+| #3 | 单元测试起步 | 3-4h | 低 | 重构保护 + 文档作用 |
+| #4 | LOCAL_DEV.md | 30 分钟 | 0 | 团队接力顺畅 |
+| #5 | workflow inputs | 30 分钟 | 0 | 手动调试更灵活 |
+| #6 | CDN 缓存策略 | 1h | 中 | 性能 + 成本优化 |
+| #7 | cdn/workers 模块 | 全新 | 中 | 拓展产品能力 |
+| #8 | 错误处理统一 | 1h | 中 | 减少重复代码 |
+| #9 | images-info 拆分 | 2h | 低 | 仓库历史控制 |
