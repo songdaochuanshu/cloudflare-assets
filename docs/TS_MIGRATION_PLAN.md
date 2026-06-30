@@ -163,9 +163,9 @@ cloudflare-assets/
    这步会报一堆错误（因为还没迁移源码），**这是预期的**。
 
 **验收**：
-- [ ] `npm install` 成功
-- [ ] `tsconfig.json` 文件存在并被 VS Code 识别
-- [ ] 现有所有 workflow 仍然跑通（验证未引入破坏性变更）
+- [x] `npm install` 成功
+- [x] `tsconfig.json` 文件存在并被 VS Code 识别
+- [x] 现有所有 workflow 仍然跑通（验证未引入破坏性变更）
 
 ---
 

@@ -89,6 +89,9 @@
 
 ### 完成
 
+**TypeScript 迁移**
+- [x] 阶段 0：基础设施搭建（package.json / tsconfig.json / .gitignore）
+
 **安全扫描接入**
 - [x] 新增 `gitleaks` 密钥扫描 workflow（`.github/workflows/security-scan.yml`）
   - 触发：PR、main push、手动 dispatch
