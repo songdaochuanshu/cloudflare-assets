@@ -1,7 +1,12 @@
 // fix-manifest-tags.ts
 // 读取 R2 中所有 markdown 文章，用 AI 修复 frontmatter 的分类和标签，同步更新 manifest.json
 import https from 'node:https';
-import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  GetObjectCommand,
+  PutObjectCommand,
+  ListObjectsV2Command,
+} from '@aws-sdk/client-s3';
 import { writeWorkflowResult, elapsed } from '../../lib/workflow-result.js';
 
 const R2_ENDPOINT = `https://${process.env.CF_ACCOUNT_ID ?? ''}.r2.cloudflarestorage.com`;
@@ -63,14 +68,14 @@ function callZhipu(prompt: string, maxTokens = 300): Promise<string> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${ZHIPU_API_KEY}`,
+        Authorization: `Bearer ${ZHIPU_API_KEY}`,
         'Content-Length': Buffer.byteLength(payload),
       },
     };
 
     const req = https.request(options, (res) => {
       let data = '';
-      res.on('data', (chunk: Buffer) => data += chunk.toString());
+      res.on('data', (chunk: Buffer) => (data += chunk.toString()));
       res.on('end', () => {
         try {
           const response = JSON.parse(data) as ZhipuResponse;
@@ -101,7 +106,10 @@ function parseJSON<T = unknown>(raw: string): T {
 // ──────────────────────────────────────────────
 // AI 分类 & 标签
 // ──────────────────────────────────────────────
-async function askAIForCategoryAndTags(title: string, contentSnippet: string): Promise<CategoryTagsResult> {
+async function askAIForCategoryAndTags(
+  title: string,
+  contentSnippet: string,
+): Promise<CategoryTagsResult> {
   const prompt = `你是技术博客分类专家。根据文章标题和内容片段，给出最合适的分类和标签。
 
 文章标题：${title}
@@ -140,7 +148,7 @@ async function main(): Promise<void> {
   const response = await s3.send(listCmd);
 
   const articles: Article[] = [];
-  for (const obj of (response.Contents ?? [])) {
+  for (const obj of response.Contents ?? []) {
     if (!obj.Key || !obj.Key.endsWith('.md')) continue;
     try {
       const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: obj.Key });
@@ -183,8 +191,17 @@ async function main(): Promise<void> {
     // 检查是否已有分类标签
     const catM = fm.match(/^category:\s*(.+)$/m);
     const tagsM = fm.match(/^tags:\s*(.+)$/m);
-    const hasCategory = !!catM && catM[1].trim() !== '' && catM[1].trim() !== 'blog' && catM[1].trim() !== '技术';
-    const hasTags = !!tagsM && (() => { try { return (JSON.parse(tagsM[1].trim()) as unknown[]).length > 0; } catch { return false; } })();
+    const hasCategory =
+      !!catM && catM[1].trim() !== '' && catM[1].trim() !== 'blog' && catM[1].trim() !== '技术';
+    const hasTags =
+      !!tagsM &&
+      (() => {
+        try {
+          return (JSON.parse(tagsM[1].trim()) as unknown[]).length > 0;
+        } catch {
+          return false;
+        }
+      })();
 
     let category: string;
     let tags: string[];
@@ -192,11 +209,19 @@ async function main(): Promise<void> {
     if (hasCategory && hasTags) {
       // 已有有效分类标签，直接用
       category = catM[1].trim();
-      try { tags = JSON.parse(tagsM[1].trim()) as string[]; } catch { tags = []; }
+      try {
+        tags = JSON.parse(tagsM[1].trim()) as string[];
+      } catch {
+        tags = [];
+      }
       console.log(`  ⏭️  ${title} — 已有分类[${category}]，跳过 AI`);
     } else {
       // 需要 AI 补充
-      const snippet = body.replace(/[#*`>\[\]()]/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 1000);
+      const snippet = body
+        .replace(/[#*`>\[\]()]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .substring(0, 1000);
       try {
         const result = await askAIForCategoryAndTags(title, snippet);
         category = result.category || '技术';
@@ -206,7 +231,15 @@ async function main(): Promise<void> {
         const msg = e instanceof Error ? e.message : String(e);
         console.error(`  ❌ ${title} — AI 失败：${msg}`);
         category = catM ? catM[1].trim() : '技术';
-        tags = tagsM ? (() => { try { return JSON.parse(tagsM[1].trim()) as string[]; } catch { return []; } })() : [];
+        tags = tagsM
+          ? (() => {
+              try {
+                return JSON.parse(tagsM[1].trim()) as string[];
+              } catch {
+                return [];
+              }
+            })()
+          : [];
       }
 
       // 修复 frontmatter：替换或添加 category 和 tags
@@ -246,7 +279,12 @@ async function main(): Promise<void> {
       category,
       tags,
       layout: 'post',
-      description: body.replace(/[#*`>\[\]()]/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 120) + '...',
+      description:
+        body
+          .replace(/[#*`>\[\]()]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .substring(0, 120) + '...',
     });
   }
 
@@ -266,7 +304,9 @@ async function main(): Promise<void> {
   });
   await s3.send(putCmd);
 
-  console.log(`[fix-manifest-tags] ✅ 完成！修复 ${fixed} 篇文章 frontmatter，manifest 共 ${manifestPosts.length} 篇`);
+  console.log(
+    `[fix-manifest-tags] ✅ 完成！修复 ${fixed} 篇文章 frontmatter，manifest 共 ${manifestPosts.length} 篇`,
+  );
 
   writeWorkflowResult({
     success: true,
@@ -274,7 +314,9 @@ async function main(): Promise<void> {
     timestamp: new Date().toISOString(),
     duration: elapsed(startTime),
     stats: { total: articles.length, fixed, manifest: manifestPosts.length },
-    details: manifestPosts.slice(0, 20).map(p => ({ title: p.title, category: p.category, tags: p.tags })),
+    details: manifestPosts
+      .slice(0, 20)
+      .map((p) => ({ title: p.title, category: p.category, tags: p.tags })),
   });
 }
 

@@ -73,7 +73,8 @@ describe('anti-slop', () => {
   describe('scoreContent', () => {
     it('纯 AI 风格文本分数应该低于正常文本', () => {
       const aiText = '大家好，今天我们来聊一个话题。希望对大家有帮助！总的来说，这是一篇好文章。';
-      const normalText = '这是一篇关于技术实现细节的深度分析。\n文章从三个角度展开论证。\n最后给出具体的代码示例。';
+      const normalText =
+        '这是一篇关于技术实现细节的深度分析。\n文章从三个角度展开论证。\n最后给出具体的代码示例。';
       const aiScore = scoreContent(aiText);
       const normalScore = scoreContent(normalText);
       expect(normalScore).toBeGreaterThan(aiScore);

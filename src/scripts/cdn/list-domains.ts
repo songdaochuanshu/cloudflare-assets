@@ -1,8 +1,11 @@
 // src/scripts/cdn/list-domains.ts
 // 列出 Cloudflare R2 / Pages / Workers 的所有自定义域名
 import {
-  listR2Domains, listPagesDomains,
-  listWorkerRoutes, listWorkerDomains, listZones,
+  listR2Domains,
+  listPagesDomains,
+  listWorkerRoutes,
+  listWorkerDomains,
+  listZones,
 } from '../../lib/cf-api.js';
 // Type imports kept for documentation// import type { R2CustomDomain, PagesDomain, WorkerRoute, WorkerDomain, Zone } from '../../lib/cf-api.js';
 import { readFileSync } from 'node:fs';
@@ -23,17 +26,25 @@ function loadConfig(): DomainsConfig {
 
 function domainStatusEmoji(status: string): string {
   switch (status) {
-    case 'active': case 'live': return '🟢';
-    case 'initializing': case 'pending': case 'validating': return '🟡';
-    case 'error': case 'failed': return '🔴';
-    default: return '⚪';
+    case 'active':
+    case 'live':
+      return '🟢';
+    case 'initializing':
+    case 'pending':
+    case 'validating':
+      return '🟡';
+    case 'error':
+    case 'failed':
+      return '🔴';
+    default:
+      return '⚪';
   }
 }
 
 async function main(): Promise<void> {
   const config = loadConfig();
   const zones = await listZones();
-  const zoneMap = new Map(zones.map(z => [z.id, z.name]));
+  const zoneMap = new Map(zones.map((z) => [z.id, z.name]));
 
   console.log('═══════════════════════════════════════════');
   console.log('  Cloudflare 自定义域名清单');
@@ -53,7 +64,9 @@ async function main(): Promise<void> {
         for (const d of domains) {
           const em = domainStatusEmoji(d.status);
           const sslEm = d.ssl?.status === 'active' ? '🔒' : '⚠️';
-          console.log(`    ${em} ${d.domain}  ${sslEm} SSL:${d.ssl?.status ?? 'unknown'}  Zone:${zoneMap.get(d.zoneId) ?? d.zoneId}`);
+          console.log(
+            `    ${em} ${d.domain}  ${sslEm} SSL:${d.ssl?.status ?? 'unknown'}  Zone:${zoneMap.get(d.zoneId) ?? d.zoneId}`,
+          );
         }
       } catch (e: unknown) {
         console.log(`    ❌ 查询失败: ${e instanceof Error ? e.message : String(e)}`);

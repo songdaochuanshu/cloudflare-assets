@@ -32,7 +32,6 @@ interface UploadedStats {
   normal: number;
 }
 
-
 const RUN_DURATION = 5 * 60 * 1000;
 const MIN_DELAY = 15000;
 const MAX_DELAY = 20000;
@@ -53,7 +52,7 @@ async function fetchRandomImage(r18: 0 | 1 | 2): Promise<LoliconImage | null> {
 
 async function downloadImage(url: string): Promise<Buffer | null> {
   const resp = await fetch(url, {
-    headers: { 'Referer': 'https://www.pixiv.net/', 'User-Agent': 'Mozilla/5.0' },
+    headers: { Referer: 'https://www.pixiv.net/', 'User-Agent': 'Mozilla/5.0' },
   });
   if (!resp.ok) return null;
   return Buffer.from(await resp.arrayBuffer());
@@ -105,7 +104,7 @@ async function main(): Promise<void> {
       if (!imageInfo) {
         console.log('  [' + mode.label + '] 获取图片信息失败，跳过');
         failed++;
-        await new Promise<void>(r => setTimeout(r, randomDelay()));
+        await new Promise<void>((r) => setTimeout(r, randomDelay()));
         continue;
       }
 
@@ -117,18 +116,24 @@ async function main(): Promise<void> {
       if (existingKeys.has(r2Key)) {
         console.log('  [' + mode.label + '] ' + filename + ' 已存在，跳过');
         skipped++;
-        await new Promise<void>(r => setTimeout(r, randomDelay()));
+        await new Promise<void>((r) => setTimeout(r, randomDelay()));
         continue;
       }
 
       console.log('  [' + mode.label + '] 下载 ' + filename + '...');
-      console.log('    标题: ' + (imageInfo.title || '(无标题)') + ' (by ' + (imageInfo.author || '(未知作者)') + ')');
+      console.log(
+        '    标题: ' +
+          (imageInfo.title || '(无标题)') +
+          ' (by ' +
+          (imageInfo.author || '(未知作者)') +
+          ')',
+      );
       const imgUrl = imageInfo.urls.original;
       const imgData = await downloadImage(imgUrl);
       if (!imgData) {
         console.log('  [' + mode.label + '] 下载失败');
         failed++;
-        await new Promise<void>(r => setTimeout(r, randomDelay()));
+        await new Promise<void>((r) => setTimeout(r, randomDelay()));
         continue;
       }
 
@@ -148,8 +153,18 @@ async function main(): Promise<void> {
         uploadDate: imageInfo.uploadDate || 0,
       };
       pending.push({ r2Key, filename, imgData, contentType, label: mode.label, metadata });
-      console.log('  [' + mode.label + '] 已下载 ' + filename + ' (' + Math.round(imgData.length / 1024) + 'KB)，等待批量上传');
-      console.log('    元数据: ' + metadata.title + ' (' + metadata.width + 'x' + metadata.height + ')');
+      console.log(
+        '  [' +
+          mode.label +
+          '] 已下载 ' +
+          filename +
+          ' (' +
+          Math.round(imgData.length / 1024) +
+          'KB)，等待批量上传',
+      );
+      console.log(
+        '    元数据: ' + metadata.title + ' (' + metadata.width + 'x' + metadata.height + ')',
+      );
       existingKeys.add(r2Key);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -159,7 +174,7 @@ async function main(): Promise<void> {
 
     const delay = randomDelay();
     console.log('  等待 ' + Math.round(delay / 1000) + ' 秒...');
-    await new Promise<void>(r => setTimeout(r, delay));
+    await new Promise<void>((r) => setTimeout(r, delay));
   }
 
   // 批量上传
@@ -180,13 +195,14 @@ async function main(): Promise<void> {
 
         // 保存元数据到缓存
         if (item.metadata) {
-          (metadataCache as Record<string, PendingItem['metadata']>)[item.metadata.pid] = item.metadata;
+          (metadataCache as Record<string, PendingItem['metadata']>)[item.metadata.pid] =
+            item.metadata;
         }
       } else {
         console.log('FAILED');
         uploadFailed++;
       }
-      await new Promise<void>(r => setTimeout(r, 100));
+      await new Promise<void>((r) => setTimeout(r, 100));
     }
   }
 
@@ -203,22 +219,28 @@ async function main(): Promise<void> {
     timestamp: new Date().toISOString(),
     duration: Math.round((Date.now() - startTime) / 1000) + '秒',
     stats: {
-      downloaded: { r18: uploaded.r18, normal: uploaded.normal, total: uploaded.r18 + uploaded.normal },
+      downloaded: {
+        r18: uploaded.r18,
+        normal: uploaded.normal,
+        total: uploaded.r18 + uploaded.normal,
+      },
       skipped: skipped,
       failed: { download: failed, upload: uploadFailed, total: failed + uploadFailed },
     },
-    details: pending.map(item => ({
+    details: pending.map((item) => ({
       filename: item.filename,
       r2Key: item.r2Key,
       label: item.label,
       size: Math.round(item.imgData.length / 1024) + 'KB',
-      metadata: item.metadata ? {
-        title: item.metadata.title,
-        author: item.metadata.author,
-        width: item.metadata.width,
-        height: item.metadata.height,
-        tags: item.metadata.tags.slice(0, 5),
-      } : null,
+      metadata: item.metadata
+        ? {
+            title: item.metadata.title,
+            author: item.metadata.author,
+            width: item.metadata.width,
+            height: item.metadata.height,
+            tags: item.metadata.tags.slice(0, 5),
+          }
+        : null,
     })),
   };
 

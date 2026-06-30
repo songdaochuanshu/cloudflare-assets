@@ -221,24 +221,50 @@ function collapseBlankLines(text: string): string {
 }
 
 function trimLines(text: string): string {
-  return text.split('\n')
-    .map(line => line.trimEnd())
+  return text
+    .split('\n')
+    .map((line) => line.trimEnd())
     .join('\n');
 }
 
 function scoreText(text: string): number {
-  const lines = text.split('\n').filter(l => l.trim());
+  const lines = text.split('\n').filter((l) => l.trim());
   const totalLen = text.replace(/\s/g, '').length;
   const avgLen = totalLen / Math.max(lines.length, 1);
 
   const badWords = [
-    '嘿', '朋友们', '大家好', '小伙伴', '其实', '后来',
-    '简直', '太棒了', '太赞了', 'YYDS', '我觉着', '我认为',
-    '相信我', '你会发现', '划重点', '希望对大家有帮助',
-    '让我们一起', '欢迎在评论区', '感谢阅读', '好了',
-    '今天', '最近呢', '话说回来', '说起来', '记得上次',
-    '总之', '总的来说', '综上所述', '总结一下',
-    '拜拜', '下期见', '就跟大家聊到这里',
+    '嘿',
+    '朋友们',
+    '大家好',
+    '小伙伴',
+    '其实',
+    '后来',
+    '简直',
+    '太棒了',
+    '太赞了',
+    'YYDS',
+    '我觉着',
+    '我认为',
+    '相信我',
+    '你会发现',
+    '划重点',
+    '希望对大家有帮助',
+    '让我们一起',
+    '欢迎在评论区',
+    '感谢阅读',
+    '好了',
+    '今天',
+    '最近呢',
+    '话说回来',
+    '说起来',
+    '记得上次',
+    '总之',
+    '总的来说',
+    '综上所述',
+    '总结一下',
+    '拜拜',
+    '下期见',
+    '就跟大家聊到这里',
   ];
 
   let badCount = 0;
@@ -250,13 +276,16 @@ function scoreText(text: string): number {
   const exclamationCount = (text.match(/[！!]/g) || []).length;
   const exclamationRatio = exclamationCount / Math.max(lines.length, 1);
 
-  let score = 100 - (badCount * 8) - (exclamationRatio * 30);
+  let score = 100 - badCount * 8 - exclamationRatio * 30;
 
   if (avgLen > 50 && avgLen < 200) score += 10;
 
   const sentences = text.split(/[。！？.!?]/);
-  const avgSentLen = sentences.map(s => s.trim().length).filter(l => l > 0)
-    .reduce((a, b) => a + b, 0) / Math.max(sentences.filter(s => s.trim()).length, 1);
+  const avgSentLen =
+    sentences
+      .map((s) => s.trim().length)
+      .filter((l) => l > 0)
+      .reduce((a, b) => a + b, 0) / Math.max(sentences.filter((s) => s.trim()).length, 1);
   if (avgSentLen > 10 && avgSentLen < 50) score += 10;
 
   return Math.max(0, Math.min(100, Math.round(score)));
@@ -294,10 +323,8 @@ export function removeAISlop(text: string): AISlopResult {
   result = collapseBlankLines(result);
 
   const score = scoreText(result);
-  const lines = result.split('\n').filter(l => l.trim());
-  const avgLen = lines.length > 0
-    ? Math.round(result.replace(/\s/g, '').length / lines.length)
-    : 0;
+  const lines = result.split('\n').filter((l) => l.trim());
+  const avgLen = lines.length > 0 ? Math.round(result.replace(/\s/g, '').length / lines.length) : 0;
 
   return { content: result, score, avgLen };
 }

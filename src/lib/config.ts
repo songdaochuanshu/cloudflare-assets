@@ -33,8 +33,10 @@ export function loadEnv(): Env {
   const result = EnvSchema.safeParse(process.env);
 
   if (!result.success) {
-    const errors = result.error.errors.map(e => `  - ${e.path.join('.')}: ${e.message}`);
-    throw new Error(`\u274c \u73af\u5883\u53d8\u91cf\u9a8c\u8bc1\u5931\u8d25:\n${errors.join('\n')}`);
+    const errors = result.error.errors.map((e) => `  - ${e.path.join('.')}: ${e.message}`);
+    throw new Error(
+      `\u274c \u73af\u5883\u53d8\u91cf\u9a8c\u8bc1\u5931\u8d25:\n${errors.join('\n')}`,
+    );
   }
 
   _cachedEnv = result.data;

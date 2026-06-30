@@ -52,12 +52,20 @@ async function main(): Promise<void> {
   };
 
   const r18Images = allKeys
-    .filter((key: string) => key.startsWith('r18/') && IMAGE_EXTENSIONS.includes('.' + (key.split('.').pop() ?? '').toLowerCase()))
+    .filter(
+      (key: string) =>
+        key.startsWith('r18/') &&
+        IMAGE_EXTENSIONS.includes('.' + (key.split('.').pop() ?? '').toLowerCase()),
+    )
     .map(makeEntry)
     .sort((a, b) => a.pid - b.pid);
 
   const normalImages = allKeys
-    .filter((key: string) => key.startsWith('normal/') && IMAGE_EXTENSIONS.includes('.' + (key.split('.').pop() ?? '').toLowerCase()))
+    .filter(
+      (key: string) =>
+        key.startsWith('normal/') &&
+        IMAGE_EXTENSIONS.includes('.' + (key.split('.').pop() ?? '').toLowerCase()),
+    )
     .map(makeEntry)
     .sort((a, b) => a.pid - b.pid);
 
@@ -66,7 +74,13 @@ async function main(): Promise<void> {
   // 写入 JSON
   const jsonContent = JSON.stringify(imagesInfo, null, 2);
   writeFileSync('images-info.json', jsonContent, 'utf8');
-  console.log('已写入 images-info.json (r18: ' + r18Images.length + ' 条, normal: ' + normalImages.length + ' 条)');
+  console.log(
+    '已写入 images-info.json (r18: ' +
+      r18Images.length +
+      ' 条, normal: ' +
+      normalImages.length +
+      ' 条)',
+  );
 
   // 上传 images-info.json 到 R2
   console.log('\n上传 images-info.json 到 R2...');

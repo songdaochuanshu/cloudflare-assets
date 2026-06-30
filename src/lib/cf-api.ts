@@ -23,16 +23,12 @@ interface CfResponse<T = unknown> {
   result: T;
 }
 
-async function cfFetch<T = unknown>(
-  method: string,
-  path: string,
-  body?: unknown,
-): Promise<T> {
+async function cfFetch<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
   const url = `${BASE}${path}`;
   const opts: RequestInit = {
     method,
     headers: {
-      'Authorization': `Bearer ${CF_API_TOKEN}`,
+      Authorization: `Bearer ${CF_API_TOKEN}`,
       'Content-Type': 'application/json',
     },
   };
@@ -42,7 +38,7 @@ async function cfFetch<T = unknown>(
   const json = (await resp.json()) as CfResponse<T>;
 
   if (!json.success) {
-    const msgs = json.errors.map(e => `[${e.code}] ${e.message}`).join('; ');
+    const msgs = json.errors.map((e) => `[${e.code}] ${e.message}`).join('; ');
     throw new Error(`Cloudflare API 错误: ${msgs}`);
   }
   return json.result;
@@ -68,7 +64,11 @@ export async function listR2Domains(bucket: string): Promise<R2CustomDomain[]> {
   );
 }
 
-export async function addR2Domain(bucket: string, domain: string, zoneId?: string): Promise<R2CustomDomain> {
+export async function addR2Domain(
+  bucket: string,
+  domain: string,
+  zoneId?: string,
+): Promise<R2CustomDomain> {
   const body: Record<string, unknown> = { domain, enabled: true, zoneId };
   return cfFetch<R2CustomDomain>(
     'PUT',
@@ -111,10 +111,7 @@ export async function addPagesDomain(project: string, domain: string): Promise<P
 }
 
 export async function removePagesDomain(project: string, domain: string): Promise<void> {
-  await cfFetch(
-    'DELETE',
-    `/accounts/${CF_ACCOUNT_ID}/pages/projects/${project}/domains/${domain}`,
-  );
+  await cfFetch('DELETE', `/accounts/${CF_ACCOUNT_ID}/pages/projects/${project}/domains/${domain}`);
 }
 
 // ──────────────────────────────────────────────
@@ -128,33 +125,29 @@ export interface WorkerRoute {
 }
 
 export async function listWorkerRoutes(): Promise<WorkerRoute[]> {
-  return cfFetch<WorkerRoute[]>(
-    'GET',
-    `/accounts/${CF_ACCOUNT_ID}/workers/routes`,
-  );
+  return cfFetch<WorkerRoute[]>('GET', `/accounts/${CF_ACCOUNT_ID}/workers/routes`);
 }
 
 export async function createWorkerRoute(pattern: string, script: string): Promise<WorkerRoute> {
-  return cfFetch<WorkerRoute>(
-    'POST',
-    `/accounts/${CF_ACCOUNT_ID}/workers/routes`,
-    { pattern, script },
-  );
+  return cfFetch<WorkerRoute>('POST', `/accounts/${CF_ACCOUNT_ID}/workers/routes`, {
+    pattern,
+    script,
+  });
 }
 
-export async function updateWorkerRoute(routeId: string, pattern: string, script: string): Promise<WorkerRoute> {
-  return cfFetch<WorkerRoute>(
-    'PUT',
-    `/accounts/${CF_ACCOUNT_ID}/workers/routes/${routeId}`,
-    { pattern, script },
-  );
+export async function updateWorkerRoute(
+  routeId: string,
+  pattern: string,
+  script: string,
+): Promise<WorkerRoute> {
+  return cfFetch<WorkerRoute>('PUT', `/accounts/${CF_ACCOUNT_ID}/workers/routes/${routeId}`, {
+    pattern,
+    script,
+  });
 }
 
 export async function deleteWorkerRoute(routeId: string): Promise<void> {
-  await cfFetch(
-    'DELETE',
-    `/accounts/${CF_ACCOUNT_ID}/workers/routes/${routeId}`,
-  );
+  await cfFetch('DELETE', `/accounts/${CF_ACCOUNT_ID}/workers/routes/${routeId}`);
 }
 
 // ──────────────────────────────────────────────
@@ -170,25 +163,23 @@ export interface WorkerDomain {
 }
 
 export async function listWorkerDomains(): Promise<WorkerDomain[]> {
-  return cfFetch<WorkerDomain[]>(
-    'GET',
-    `/accounts/${CF_ACCOUNT_ID}/workers/domains`,
-  );
+  return cfFetch<WorkerDomain[]>('GET', `/accounts/${CF_ACCOUNT_ID}/workers/domains`);
 }
 
-export async function addWorkerDomain(hostname: string, service: string, zoneId: string): Promise<WorkerDomain> {
-  return cfFetch<WorkerDomain>(
-    'PUT',
-    `/accounts/${CF_ACCOUNT_ID}/workers/domains`,
-    { hostname, service, zone_id: zoneId },
-  );
+export async function addWorkerDomain(
+  hostname: string,
+  service: string,
+  zoneId: string,
+): Promise<WorkerDomain> {
+  return cfFetch<WorkerDomain>('PUT', `/accounts/${CF_ACCOUNT_ID}/workers/domains`, {
+    hostname,
+    service,
+    zone_id: zoneId,
+  });
 }
 
 export async function removeWorkerDomain(domainId: string): Promise<void> {
-  await cfFetch(
-    'DELETE',
-    `/accounts/${CF_ACCOUNT_ID}/workers/domains/${domainId}`,
-  );
+  await cfFetch('DELETE', `/accounts/${CF_ACCOUNT_ID}/workers/domains/${domainId}`);
 }
 
 // ──────────────────────────────────────────────
@@ -202,10 +193,7 @@ export interface Zone {
 }
 
 export async function listZones(): Promise<Zone[]> {
-  return cfFetch<Zone[]>(
-    'GET',
-    `/zones?account.id=${CF_ACCOUNT_ID}&per_page=50`,
-  );
+  return cfFetch<Zone[]>('GET', `/zones?account.id=${CF_ACCOUNT_ID}&per_page=50`);
 }
 
 export async function findZoneId(domain: string): Promise<string | null> {
@@ -214,7 +202,7 @@ export async function findZoneId(domain: string): Promise<string | null> {
   const parts = domain.split('.');
   for (let i = 1; i < parts.length; i++) {
     const candidate = parts.slice(i).join('.');
-    const zone = zones.find(z => z.name === candidate);
+    const zone = zones.find((z) => z.name === candidate);
     if (zone) return zone.id;
   }
   return null;

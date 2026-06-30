@@ -29,7 +29,8 @@ let summary: CrawlSummary;
 try {
   const summaryPath = './crawl-summary.json';
   summary = JSON.parse(readFileSync(summaryPath, 'utf8'));
-} catch { // ignore
+} catch {
+  // ignore
   summary = {
     success: false,
     error: '无法读取 crawl-summary.json',
@@ -37,8 +38,8 @@ try {
     stats: {
       downloaded: { total: 0 },
       skipped: 0,
-      failed: { total: 0 }
-    }
+      failed: { total: 0 },
+    },
   };
 }
 
@@ -47,7 +48,7 @@ function buildEmailHTML(summary: CrawlSummary, status: string | undefined): stri
   const isSuccess = status === 'success';
   const statusEmoji = isSuccess ? '✅' : '❌';
   const statusText = isSuccess ? '爬取成功' : '爬取失败';
-  
+
   let html = `
 <!DOCTYPE html>
 <html>
@@ -107,7 +108,7 @@ function buildEmailHTML(summary: CrawlSummary, status: string | undefined): stri
           <th>作者</th>
         </tr>
     `;
-    
+
     for (const item of summary.details.slice(0, 10)) {
       html += `
         <tr>
@@ -119,7 +120,7 @@ function buildEmailHTML(summary: CrawlSummary, status: string | undefined): stri
         </tr>
       `;
     }
-    
+
     html += `
       </table>
       ${summary.details.length > 10 ? '<p>... 还有 ' + (summary.details.length - 10) + ' 条记录未显示</p>' : ''}
@@ -169,7 +170,7 @@ async function sendEmail(): Promise<void> {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${RESEND_API_KEY}`,
+      Authorization: `Bearer ${RESEND_API_KEY}`,
     },
     body: JSON.stringify(payload),
   });
@@ -184,7 +185,7 @@ async function sendEmail(): Promise<void> {
   console.log('✅ 邮件发送成功! Email ID:', result.id);
 }
 
-sendEmail().catch(err => {
+sendEmail().catch((err) => {
   console.error('❌ 发送邮件时出错:', err);
   process.exit(1);
 });

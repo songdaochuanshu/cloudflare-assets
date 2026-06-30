@@ -17,7 +17,7 @@ export const logger = pino(
           },
         }),
       ]
-    : undefined
+    : undefined,
 );
 
 export function childLogger(context: Record<string, unknown>) {

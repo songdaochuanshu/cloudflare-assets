@@ -8,7 +8,9 @@ const R2_PREFIX = 'r18/';
 
 async function main(): Promise<void> {
   const startTime = Date.now();
-  const files = readFileSync('files_to_delete.txt', 'utf8').split('\n').filter((f: string) => f.trim());
+  const files = readFileSync('files_to_delete.txt', 'utf8')
+    .split('\n')
+    .filter((f: string) => f.trim());
   console.log('要删除 ' + files.length + ' 个文件');
   let success = 0;
   let failed = 0;
@@ -35,7 +37,7 @@ async function main(): Promise<void> {
       details.push({ filename, key, status: '错误', error: msg });
       failed++;
     }
-    await new Promise<void>(r => setTimeout(r, 100));
+    await new Promise<void>((r) => setTimeout(r, 100));
   }
 
   console.log('\n========== 结果 ==========');

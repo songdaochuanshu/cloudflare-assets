@@ -2,10 +2,18 @@
 // 根据 cdn/domains.json 配置，同步 Cloudflare R2 / Pages / Workers 自定义域名
 import { readFileSync } from 'node:fs';
 import {
-  listR2Domains, addR2Domain, removeR2Domain,
-  listPagesDomains, addPagesDomain, removePagesDomain,
-  listWorkerRoutes, createWorkerRoute, deleteWorkerRoute,
-  listWorkerDomains, addWorkerDomain, removeWorkerDomain,
+  listR2Domains,
+  addR2Domain,
+  removeR2Domain,
+  listPagesDomains,
+  addPagesDomain,
+  removePagesDomain,
+  listWorkerRoutes,
+  createWorkerRoute,
+  deleteWorkerRoute,
+  listWorkerDomains,
+  addWorkerDomain,
+  removeWorkerDomain,
   findZoneId,
 } from '../../lib/cf-api.js';
 import { writeWorkflowResult, elapsed } from '../../lib/workflow-result.js';
@@ -24,7 +32,9 @@ function loadConfig(): DomainsConfig {
   return JSON.parse(raw) as DomainsConfig;
 }
 
-async function syncR2(config: DomainsConfig): Promise<{ added: string[]; removed: string[]; kept: string[]; errors: string[] }> {
+async function syncR2(
+  config: DomainsConfig,
+): Promise<{ added: string[]; removed: string[]; kept: string[]; errors: string[] }> {
   const added: string[] = [];
   const removed: string[] = [];
   const kept: string[] = [];
@@ -32,14 +42,14 @@ async function syncR2(config: DomainsConfig): Promise<{ added: string[]; removed
 
   for (const [bucket, cfg] of Object.entries(config.r2 ?? {})) {
     const desired = new Set(cfg.domains);
-    let current: { domain: string }[] ;  
+    let current: { domain: string }[];
     try {
       current = await listR2Domains(bucket);
     } catch (e: unknown) {
       errors.push(`R2/${bucket}: 列出域名失败 — ${e instanceof Error ? e.message : String(e)}`);
       continue;
     }
-    const currentSet = new Set(current.map(d => d.domain));
+    const currentSet = new Set(current.map((d) => d.domain));
 
     // 添加缺失的
     for (const domain of desired) {
@@ -77,7 +87,9 @@ async function syncR2(config: DomainsConfig): Promise<{ added: string[]; removed
   return { added, removed, kept, errors };
 }
 
-async function syncPages(config: DomainsConfig): Promise<{ added: string[]; removed: string[]; kept: string[]; errors: string[] }> {
+async function syncPages(
+  config: DomainsConfig,
+): Promise<{ added: string[]; removed: string[]; kept: string[]; errors: string[] }> {
   const added: string[] = [];
   const removed: string[] = [];
   const kept: string[] = [];
@@ -85,14 +97,14 @@ async function syncPages(config: DomainsConfig): Promise<{ added: string[]; remo
 
   for (const [project, cfg] of Object.entries(config.pages ?? {})) {
     const desired = new Set(cfg.domains);
-    let current: { name: string }[] ;  
+    let current: { name: string }[];
     try {
       current = await listPagesDomains(project);
     } catch (e: unknown) {
       errors.push(`Pages/${project}: 列出域名失败 — ${e instanceof Error ? e.message : String(e)}`);
       continue;
     }
-    const currentSet = new Set(current.map(d => d.name));
+    const currentSet = new Set(current.map((d) => d.name));
 
     for (const domain of desired) {
       if (currentSet.has(domain)) {
@@ -127,16 +139,19 @@ async function syncPages(config: DomainsConfig): Promise<{ added: string[]; remo
   return { added, removed, kept, errors };
 }
 
-async function syncWorkerRoutes(config: DomainsConfig): Promise<{ added: string[]; removed: string[]; kept: string[]; errors: string[] }> {
+async function syncWorkerRoutes(
+  config: DomainsConfig,
+): Promise<{ added: string[]; removed: string[]; kept: string[]; errors: string[] }> {
   const added: string[] = [];
   const removed: string[] = [];
   const kept: string[] = [];
   const errors: string[] = [];
 
   const desiredRoutes = config.workers?.routes ?? [];
-  if (desiredRoutes.length === 0 && !config.workers?.routes) return { added, removed, kept, errors };
+  if (desiredRoutes.length === 0 && !config.workers?.routes)
+    return { added, removed, kept, errors };
 
-  let current: { id: string; pattern: string; script: string }[] ;  
+  let current: { id: string; pattern: string; script: string }[];
   try {
     current = await listWorkerRoutes();
   } catch (e: unknown) {
@@ -144,8 +159,8 @@ async function syncWorkerRoutes(config: DomainsConfig): Promise<{ added: string[
     return { added, removed, kept, errors };
   }
 
-  const desiredPatterns = new Set(desiredRoutes.map(r => r.pattern));
-  const currentPatterns = new Map(current.map(r => [r.pattern, r]));
+  const desiredPatterns = new Set(desiredRoutes.map((r) => r.pattern));
+  const currentPatterns = new Map(current.map((r) => [r.pattern, r]));
 
   for (const route of desiredRoutes) {
     const existing = currentPatterns.get(route.pattern);
@@ -175,16 +190,19 @@ async function syncWorkerRoutes(config: DomainsConfig): Promise<{ added: string[
   return { added, removed, kept, errors };
 }
 
-async function syncWorkerDomains(config: DomainsConfig): Promise<{ added: string[]; removed: string[]; kept: string[]; errors: string[] }> {
+async function syncWorkerDomains(
+  config: DomainsConfig,
+): Promise<{ added: string[]; removed: string[]; kept: string[]; errors: string[] }> {
   const added: string[] = [];
   const removed: string[] = [];
   const kept: string[] = [];
   const errors: string[] = [];
 
   const desired = config.workers?.domains ?? {};
-  if (Object.keys(desired).length === 0 && !config.workers?.domains) return { added, removed, kept, errors };
+  if (Object.keys(desired).length === 0 && !config.workers?.domains)
+    return { added, removed, kept, errors };
 
-  let current: { id: string; hostname: string; service: string }[] ;  
+  let current: { id: string; hostname: string; service: string }[];
   try {
     current = await listWorkerDomains();
   } catch (e: unknown) {
@@ -192,7 +210,7 @@ async function syncWorkerDomains(config: DomainsConfig): Promise<{ added: string
     return { added, removed, kept, errors };
   }
 
-  const currentMap = new Map(current.map(d => [d.hostname, d]));
+  const currentMap = new Map(current.map((d) => [d.hostname, d]));
   const allDesiredHostnames = new Set(Object.values(desired).flat());
 
   for (const [service, hostnames] of Object.entries(desired)) {
@@ -259,7 +277,9 @@ async function main(): Promise<void> {
   const allErrors = [...r2.errors, ...pages.errors, ...routes.errors, ...workerDomains.errors];
 
   console.log('═══════════════════════════════════════════');
-  console.log(`  ✅ 添加: ${allAdded.length}  🗑️  删除: ${allRemoved.length}  ⏭️  保持: ${allKept.length}  ❌ 错误: ${allErrors.length}`);
+  console.log(
+    `  ✅ 添加: ${allAdded.length}  🗑️  删除: ${allRemoved.length}  ⏭️  保持: ${allKept.length}  ❌ 错误: ${allErrors.length}`,
+  );
   console.log('═══════════════════════════════════════════');
 
   writeWorkflowResult({
@@ -274,9 +294,9 @@ async function main(): Promise<void> {
       errors: allErrors.length,
     },
     details: [
-      ...allAdded.map(d => ({ action: '添加', domain: d, status: '成功' })),
-      ...allRemoved.map(d => ({ action: '删除', domain: d, status: '成功' })),
-      ...allErrors.map(d => ({ action: '错误', domain: d, status: '失败' })),
+      ...allAdded.map((d) => ({ action: '添加', domain: d, status: '成功' })),
+      ...allRemoved.map((d) => ({ action: '删除', domain: d, status: '成功' })),
+      ...allErrors.map((d) => ({ action: '错误', domain: d, status: '失败' })),
     ],
   });
 }

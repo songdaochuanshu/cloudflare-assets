@@ -21,10 +21,12 @@ async function deleteOldPosts(): Promise<void> {
   const startTime = Date.now();
 
   // 列出所有 blog/ 开头的对象
-  const listRes = await s3.send(new ListObjectsV2Command({
-    Bucket: R2_BUCKET,
-    Prefix: 'blog/',
-  }));
+  const listRes = await s3.send(
+    new ListObjectsV2Command({
+      Bucket: R2_BUCKET,
+      Prefix: 'blog/',
+    }),
+  );
 
   const toDelete = (listRes.Contents ?? []).filter((obj) => obj.Key !== KEEP);
 
@@ -34,10 +36,12 @@ async function deleteOldPosts(): Promise<void> {
   for (const obj of toDelete) {
     if (!obj.Key) continue;
     console.log(`[delete] 删除: ${obj.Key}`);
-    await s3.send(new DeleteObjectCommand({
-      Bucket: R2_BUCKET,
-      Key: obj.Key,
-    }));
+    await s3.send(
+      new DeleteObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: obj.Key,
+      }),
+    );
     details.push({ key: obj.Key, status: '已删除' });
     console.log(`[delete] ✅ 已删除: ${obj.Key}`);
   }

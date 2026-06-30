@@ -18,14 +18,20 @@ export const emptyPayloadHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934
 // ===== 签名工具 =====
 
 export function getSignatureKey(key: string, dateStamp: string): Buffer {
-  const kDate = crypto.createHmac('sha256', 'AWS4' + key).update(dateStamp).digest();
+  const kDate = crypto
+    .createHmac('sha256', 'AWS4' + key)
+    .update(dateStamp)
+    .digest();
   const kRegion = crypto.createHmac('sha256', kDate).update('auto').digest();
   const kService = crypto.createHmac('sha256', kRegion).update('s3').digest();
   return crypto.createHmac('sha256', kService).update('aws4_request').digest();
 }
 
 export function formatDate(date: Date): string {
-  return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  return date
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}/, '');
 }
 
 /**
@@ -37,7 +43,7 @@ export function signRequest(
   query: string,
   bodyHash: string,
   date: Date,
-  extraHeaders?: Record<string, string>
+  extraHeaders?: Record<string, string>,
 ): { authorization: string; amzDate: string } {
   const amzDate = formatDate(date);
   const dateStamp = amzDate.slice(0, 8);
@@ -60,14 +66,35 @@ export function signRequest(
 
   const algorithm = 'AWS4-HMAC-SHA256';
   const credentialScope = dateStamp + '/auto/s3/aws4_request';
-  const canonicalRequest = method + '\n' + uri + '\n' + query + '\n' + canonicalHeaders + '\n' + signedHeaders + '\n' + bodyHash;
+  const canonicalRequest =
+    method +
+    '\n' +
+    uri +
+    '\n' +
+    query +
+    '\n' +
+    canonicalHeaders +
+    '\n' +
+    signedHeaders +
+    '\n' +
+    bodyHash;
   const hashedCanonicalRequest = crypto.createHash('sha256').update(canonicalRequest).digest('hex');
-  const stringToSign = algorithm + '\n' + amzDate + '\n' + credentialScope + '\n' + hashedCanonicalRequest;
+  const stringToSign =
+    algorithm + '\n' + amzDate + '\n' + credentialScope + '\n' + hashedCanonicalRequest;
   const signingKey = getSignatureKey(secretAccessKey, dateStamp);
   const signature = crypto.createHmac('sha256', signingKey).update(stringToSign).digest('hex');
 
   return {
-    authorization: algorithm + ' Credential=' + accessKeyId + '/' + credentialScope + ', SignedHeaders=' + signedHeaders + ', Signature=' + signature,
+    authorization:
+      algorithm +
+      ' Credential=' +
+      accessKeyId +
+      '/' +
+      credentialScope +
+      ', SignedHeaders=' +
+      signedHeaders +
+      ', Signature=' +
+      signature,
     amzDate,
   };
 }
@@ -87,7 +114,12 @@ export async function listAllKeys(prefix?: string): Promise<string[]> {
     const { authorization, amzDate } = signRequest('GET', '/', query, emptyPayloadHash, new Date());
     const url = 'https://' + host + '/?' + query;
     const resp = await fetch(url, {
-      headers: { 'Authorization': authorization, 'x-amz-content-sha256': emptyPayloadHash, 'x-amz-date': amzDate, 'Host': host },
+      headers: {
+        Authorization: authorization,
+        'x-amz-content-sha256': emptyPayloadHash,
+        'x-amz-date': amzDate,
+        Host: host,
+      },
     });
     if (!resp.ok) {
       throw new R2Error(`R2 list failed: HTTP ${resp.status}`, { prefix, status: resp.status });
@@ -116,10 +148,18 @@ export async function listObjects(prefix?: string): Promise<ListedObject[]> {
     const { authorization, amzDate } = signRequest('GET', '/', query, emptyPayloadHash, new Date());
     const url = 'https://' + host + '/?' + query;
     const resp = await fetch(url, {
-      headers: { 'Authorization': authorization, 'x-amz-content-sha256': emptyPayloadHash, 'x-amz-date': amzDate, 'Host': host },
+      headers: {
+        Authorization: authorization,
+        'x-amz-content-sha256': emptyPayloadHash,
+        'x-amz-date': amzDate,
+        Host: host,
+      },
     });
     if (!resp.ok) {
-      throw new R2Error(`R2 list objects failed: HTTP ${resp.status}`, { prefix, status: resp.status });
+      throw new R2Error(`R2 list objects failed: HTTP ${resp.status}`, {
+        prefix,
+        status: resp.status,
+      });
     }
     const xml = await resp.text();
 
@@ -149,29 +189,45 @@ export async function listObjects(prefix?: string): Promise<ListedObject[]> {
 /**
  * 上传对象到 R2
  */
-export async function uploadToR2(key: string, body: Buffer | string, options?: UploadOptions): Promise<boolean> {
+export async function uploadToR2(
+  key: string,
+  body: Buffer | string,
+  options?: UploadOptions,
+): Promise<boolean> {
   const bodyHash = crypto.createHash('sha256').update(body).digest('hex');
   const contentType = options?.contentType;
   const extraHeaders = contentType ? { 'content-type': contentType } : undefined;
-  const { authorization, amzDate } = signRequest('PUT', '/' + key, '', bodyHash, new Date(), extraHeaders);
+  const { authorization, amzDate } = signRequest(
+    'PUT',
+    '/' + key,
+    '',
+    bodyHash,
+    new Date(),
+    extraHeaders,
+  );
   const url = 'https://' + host + '/' + key;
   const resp = await fetch(url, {
     method: 'PUT',
     headers: {
-      'Authorization': authorization,
+      Authorization: authorization,
       'x-amz-content-sha256': bodyHash,
       'x-amz-date': amzDate,
-      'Host': host,
+      Host: host,
       ...(contentType ? { 'Content-Type': contentType } : {}),
       ...(options?.metadata
-        ? Object.fromEntries(Object.entries(options.metadata).map(([k, v]) => [`x-amz-meta-${k}`, v]))
+        ? Object.fromEntries(
+            Object.entries(options.metadata).map(([k, v]) => [`x-amz-meta-${k}`, v]),
+          )
         : {}),
     },
     body,
   });
   if (!resp.ok) {
     const respBody = await resp.text().catch(() => '(unable to read body)');
-    throw new R2Error(`R2 PUT failed: HTTP ${resp.status} — ${respBody.slice(0, 300)}`, { key, status: resp.status });
+    throw new R2Error(`R2 PUT failed: HTTP ${resp.status} — ${respBody.slice(0, 300)}`, {
+      key,
+      status: resp.status,
+    });
   }
   return true;
 }
@@ -180,12 +236,26 @@ export async function uploadToR2(key: string, body: Buffer | string, options?: U
  * 删除 R2 对象
  */
 export async function deleteObject(key: string): Promise<boolean> {
-  const encodedKey = key.split('/').map(p => encodeURIComponent(p)).join('/');
-  const { authorization, amzDate } = signRequest('DELETE', '/' + encodedKey, '', emptyPayloadHash, new Date());
+  const encodedKey = key
+    .split('/')
+    .map((p) => encodeURIComponent(p))
+    .join('/');
+  const { authorization, amzDate } = signRequest(
+    'DELETE',
+    '/' + encodedKey,
+    '',
+    emptyPayloadHash,
+    new Date(),
+  );
   const url = 'https://' + host + '/' + encodedKey;
   const resp = await fetch(url, {
     method: 'DELETE',
-    headers: { 'Authorization': authorization, 'x-amz-content-sha256': emptyPayloadHash, 'x-amz-date': amzDate, 'Host': host },
+    headers: {
+      Authorization: authorization,
+      'x-amz-content-sha256': emptyPayloadHash,
+      'x-amz-date': amzDate,
+      Host: host,
+    },
   });
   if (!resp.ok && resp.status !== 204) {
     throw new R2Error(`R2 DELETE failed: HTTP ${resp.status}`, { key, status: resp.status });

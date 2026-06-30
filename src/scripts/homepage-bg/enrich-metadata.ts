@@ -9,7 +9,15 @@ const BATCH_SIZE = 10; // 每批处理 10 张
 const DELAY_MS = 1000; // 每次请求间隔 1 秒（避免被限流）
 
 // 从 Pixiv oEmbed API 获取图片信息（无需登录）
-async function fetchPixivMetadata(pid: number): Promise<{ title: string; author: string; width: number; height: number; tags: string[] } | null> {
+async function fetchPixivMetadata(
+  pid: number,
+): Promise<{
+  title: string;
+  author: string;
+  width: number;
+  height: number;
+  tags: string[];
+} | null> {
   try {
     const url = `https://www.pixiv.net/oembed?url=https://www.pixiv.net/artworks/${pid}`;
     const resp = await fetch(url, {
@@ -53,7 +61,7 @@ async function fetchPixivMetadata(pid: number): Promise<{ title: string; author:
 
 // 延迟函数
 function sleep(ms: number): Promise<void> {
-  return new Promise<void>(resolve => setTimeout(resolve, ms));
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
 async function main(): Promise<void> {
@@ -68,7 +76,12 @@ async function main(): Promise<void> {
   let allImages: ImageEntry[] = [];
   if (Array.isArray(rawData)) {
     allImages = rawData as ImageEntry[];
-  } else if (typeof rawData === 'object' && rawData !== null && 'r18' in rawData && 'normal' in rawData) {
+  } else if (
+    typeof rawData === 'object' &&
+    rawData !== null &&
+    'r18' in rawData &&
+    'normal' in rawData
+  ) {
     const classified = rawData as ImagesInfo;
     allImages = [...classified.r18, ...classified.normal];
   }
@@ -77,7 +90,7 @@ async function main(): Promise<void> {
 
   // 统计需要补全的图片
   const needEnrich = allImages.filter(
-    (img: ImageEntry) => !img.title || !img.author || !img.width || !img.height
+    (img: ImageEntry) => !img.title || !img.author || !img.width || !img.height,
   );
   console.log(`需要补全元数据: ${needEnrich.length} 张`);
   console.log('');

@@ -70,4 +70,6 @@ const imagesInfo: ImagesInfo = {
 writeFileSync(OUTPUT_PATH, JSON.stringify(imagesInfo, null, 2), 'utf8');
 console.log(`✅ 已修复并写入 ${OUTPUT_PATH}`);
 console.log('');
-console.log('下一步: 提交并推送到 GitHub，然后手动运行 GitHub Actions "Update Images Info" workflow');
+console.log(
+  '下一步: 提交并推送到 GitHub，然后手动运行 GitHub Actions "Update Images Info" workflow',
+);

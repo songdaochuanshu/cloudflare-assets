@@ -29,7 +29,7 @@ describe('r2-client', () => {
   describe('纯函数（无网络）', () => {
     it('emptyPayloadHash 正确（空字符串 SHA256）', () => {
       expect(emptyPayloadHash).toBe(
-        'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+        'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
       );
     });
 
@@ -64,7 +64,13 @@ describe('r2-client', () => {
     });
 
     it('signRequest 返回的 authorization 包含必要字段', () => {
-      const result = signRequest('GET', '/', '', emptyPayloadHash, new Date('2026-06-30T12:00:00.000Z'));
+      const result = signRequest(
+        'GET',
+        '/',
+        '',
+        emptyPayloadHash,
+        new Date('2026-06-30T12:00:00.000Z'),
+      );
       expect(result.authorization).toContain('AWS4-HMAC-SHA256');
       expect(result.authorization).toContain('Credential=test_key_id/');
       expect(result.authorization).toContain('SignedHeaders=');
@@ -79,7 +85,7 @@ describe('r2-client', () => {
         '',
         emptyPayloadHash,
         new Date('2026-06-30T12:00:00.000Z'),
-        { 'content-type': 'image/jpeg' }
+        { 'content-type': 'image/jpeg' },
       );
       expect(result.authorization).toContain('content-type');
     });
@@ -97,11 +103,14 @@ describe('r2-client', () => {
           <Key>normal/2.jpg</Key>
           <Key>r18/3.jpg</Key>
         </ListBucketResult>`;
-      vi.stubGlobal('fetch', vi.fn(async () => ({
-        ok: true,
-        status: 200,
-        text: async () => xml,
-      })));
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ({
+          ok: true,
+          status: 200,
+          text: async () => xml,
+        })),
+      );
 
       const keys = await listAllKeys();
       expect(keys).toEqual(['normal/1.jpg', 'normal/2.jpg', 'r18/3.jpg']);
@@ -125,11 +134,14 @@ describe('r2-client', () => {
     });
 
     it('listAllKeys 在 HTTP 失败时抛出 R2Error', async () => {
-      vi.stubGlobal('fetch', vi.fn(async () => ({
-        ok: false,
-        status: 500,
-        text: async () => 'error',
-      })));
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ({
+          ok: false,
+          status: 500,
+          text: async () => 'error',
+        })),
+      );
 
       await expect(listAllKeys()).rejects.toThrow('R2 list failed: HTTP 500');
     });
@@ -151,41 +163,55 @@ describe('r2-client', () => {
     });
 
     it('uploadToR2 成功时返回 true', async () => {
-      vi.stubGlobal('fetch', vi.fn(async () => ({
-        ok: true,
-        status: 200,
-        text: async () => '',
-      })));
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ({
+          ok: true,
+          status: 200,
+          text: async () => '',
+        })),
+      );
 
       const result = await uploadToR2('test.jpg', Buffer.from('fake'), 'image/jpeg');
       expect(result).toBe(true);
     });
 
     it('uploadToR2 失败时抛出 R2Error', async () => {
-      vi.stubGlobal('fetch', vi.fn(async () => ({
-        ok: false,
-        status: 403,
-        text: async () => 'forbidden',
-      })));
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ({
+          ok: false,
+          status: 403,
+          text: async () => 'forbidden',
+        })),
+      );
 
-      await expect(uploadToR2('test.jpg', Buffer.from('fake'))).rejects.toThrow('R2 PUT failed: HTTP 403');
+      await expect(uploadToR2('test.jpg', Buffer.from('fake'))).rejects.toThrow(
+        'R2 PUT failed: HTTP 403',
+      );
     });
 
     it('deleteObject 在 200/204 都返回 true', async () => {
-      vi.stubGlobal('fetch', vi.fn(async () => ({
-        ok: true,
-        status: 204,
-      })));
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ({
+          ok: true,
+          status: 204,
+        })),
+      );
 
       const result = await deleteObject('test.jpg');
       expect(result).toBe(true);
     });
 
     it('deleteObject 在 404 抛出 R2Error', async () => {
-      vi.stubGlobal('fetch', vi.fn(async () => ({
-        ok: false,
-        status: 404,
-      })));
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ({
+          ok: false,
+          status: 404,
+        })),
+      );
 
       await expect(deleteObject('missing.jpg')).rejects.toThrow('R2 DELETE failed: HTTP 404');
     });

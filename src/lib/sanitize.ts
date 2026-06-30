@@ -1,16 +1,48 @@
 import DOMPurify from 'isomorphic-dompurify';
 
 const ALLOWED_TAGS = [
-  'p', 'br', 'strong', 'b', 'em', 'i', 'code', 'pre',
-  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-  'ul', 'ol', 'li', 'blockquote',
-  'a', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
-  'span', 'div', 'hr',
+  'p',
+  'br',
+  'strong',
+  'b',
+  'em',
+  'i',
+  'code',
+  'pre',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'ul',
+  'ol',
+  'li',
+  'blockquote',
+  'a',
+  'img',
+  'table',
+  'thead',
+  'tbody',
+  'tr',
+  'th',
+  'td',
+  'span',
+  'div',
+  'hr',
 ];
 
 const ALLOWED_ATTR = [
-  'href', 'src', 'alt', 'title', 'class', 'id',
-  'target', 'rel', 'width', 'height',
+  'href',
+  'src',
+  'alt',
+  'title',
+  'class',
+  'id',
+  'target',
+  'rel',
+  'width',
+  'height',
 ];
 
 const ALLOWED_SCHEMES = ['http', 'https', 'mailto'];
@@ -39,7 +71,7 @@ export function sanitizeUrl(url: string): string {
   const allowedDomains = ['img-homepage.openservec loud', 'pub-', 'r2.dev', 'cloudflare.com'];
   try {
     const { hostname } = new URL(url.startsWith('http') ? url : `https://${url}`);
-    const isAllowed = allowedDomains.some(d => hostname.includes(d));
+    const isAllowed = allowedDomains.some((d) => hostname.includes(d));
     if (!isAllowed) return '';
   } catch {
     return '';

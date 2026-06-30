@@ -33,7 +33,9 @@ function loadWorkflowResult(): WorkflowResult {
   for (const file of possibleFiles) {
     try {
       return JSON.parse(readFileSync(file, 'utf8'));
-    } catch { /* next */ }
+    } catch {
+      /* next */
+    }
   }
   return {
     success: WORKFLOW_STATUS === 'success',
@@ -66,19 +68,42 @@ const WORKFLOW_NAMES: Record<string, string> = {
 };
 
 const STAT_LABELS: Record<string, string> = {
-  downloaded: '下载成功', skipped: '跳过', failed: '失败',
-  updated: '更新', deleted: '删除', total: '总计',
-  r18: 'R18', normal: 'Normal', fixed: '修复', kept: '保留',
-  matched: '匹配', manifest: 'Manifest', existing: '已有', new: '新增',
-  totalR2: 'R2 总文件', uploaded: '已上传', wordCount: '字数',
-  readabilityScore: '可读性', avgParagraphLen: '平均段落长',
+  downloaded: '下载成功',
+  skipped: '跳过',
+  failed: '失败',
+  updated: '更新',
+  deleted: '删除',
+  total: '总计',
+  r18: 'R18',
+  normal: 'Normal',
+  fixed: '修复',
+  kept: '保留',
+  matched: '匹配',
+  manifest: 'Manifest',
+  existing: '已有',
+  new: '新增',
+  totalR2: 'R2 总文件',
+  uploaded: '已上传',
+  wordCount: '字数',
+  readabilityScore: '可读性',
+  avgParagraphLen: '平均段落长',
 };
 
 const HEADER_LABELS: Record<string, string> = {
-  filename: '文件名', r2Key: 'R2 路径', label: '分类', size: '大小',
-  title: '标题', author: '作者', pid: 'PID', status: '状态',
-  message: '信息', key: 'Key', category: '分类', tags: '标签',
-  topic: '主题', error: '错误',
+  filename: '文件名',
+  r2Key: 'R2 路径',
+  label: '分类',
+  size: '大小',
+  title: '标题',
+  author: '作者',
+  pid: 'PID',
+  status: '状态',
+  message: '信息',
+  key: 'Key',
+  category: '分类',
+  tags: '标签',
+  topic: '主题',
+  error: '错误',
 };
 
 function buildEmailContent(result: WorkflowResult): string {
@@ -89,20 +114,30 @@ function buildEmailContent(result: WorkflowResult): string {
   const name = WORKFLOW_NAMES[result.workflow || WORKFLOW_NAME] || result.workflow || WORKFLOW_NAME;
   const statusLabel = ok ? '执行成功' : '执行失败';
   const statusIcon = ok ? '✓' : '✕';
-  const ts = new Date(result.timestamp).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const ts = new Date(result.timestamp).toLocaleString('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
   // ── stats cards ──
   let statsHtml = '';
   if (result.stats && Object.keys(result.stats).length > 0) {
     const entries = Object.entries(result.stats).filter(([, v]) => typeof v !== 'object');
     if (entries.length > 0) {
-      const cards = entries.map(([k, v]) => `
+      const cards = entries
+        .map(
+          ([k, v]) => `
         <td style="padding:0;vertical-align:top;width:${Math.floor(100 / Math.min(entries.length, 4))}%">
           <div style="background:#f9fafb;border-radius:8px;padding:14px 12px;text-align:center;border:1px solid #f3f4f6">
             <div style="font-size:26px;font-weight:700;color:${accent};line-height:1.1">${v}</div>
             <div style="font-size:11px;color:#6b7280;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px">${STAT_LABELS[k] || k}</div>
           </div>
-        </td>`).join('');
+        </td>`,
+        )
+        .join('');
       statsHtml = `
         <tr><td style="padding:24px 32px 0">
           <table width="100%" cellpadding="0" cellspacing="0" style="border-spacing:0 8px"><tr>${cards}</tr></table>
@@ -114,21 +149,30 @@ function buildEmailContent(result: WorkflowResult): string {
   let detailsHtml = '';
   if (result.details && result.details.length > 0) {
     const headers = Object.keys(result.details[0]);
-    const ths = headers.map(h =>
-      `<th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:600;color:#6b7280;border-bottom:2px solid #e5e7eb;white-space:nowrap">${HEADER_LABELS[h] || h}</th>`
-    ).join('');
-    const rows = result.details.slice(0, 15).map(item => {
-      const tds = headers.map(h => {
-        let v = item[h];
-        if (Array.isArray(v)) v = v.join(', ');
-        if (typeof v === 'object' && v !== null) v = JSON.stringify(v).slice(0, 40);
-        return `<td style="padding:10px 14px;font-size:13px;color:#374151;border-bottom:1px solid #f3f4f6;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v ?? '—'}</td>`;
-      }).join('');
-      return `<tr style="background:white">${tds}</tr>`;
-    }).join('');
-    const more = result.details.length > 15
-      ? `<tr><td colspan="${headers.length}" style="padding:10px 14px;font-size:12px;color:#9ca3af;text-align:center">还有 ${result.details.length - 15} 条未显示</td></tr>`
-      : '';
+    const ths = headers
+      .map(
+        (h) =>
+          `<th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:600;color:#6b7280;border-bottom:2px solid #e5e7eb;white-space:nowrap">${HEADER_LABELS[h] || h}</th>`,
+      )
+      .join('');
+    const rows = result.details
+      .slice(0, 15)
+      .map((item) => {
+        const tds = headers
+          .map((h) => {
+            let v = item[h];
+            if (Array.isArray(v)) v = v.join(', ');
+            if (typeof v === 'object' && v !== null) v = JSON.stringify(v).slice(0, 40);
+            return `<td style="padding:10px 14px;font-size:13px;color:#374151;border-bottom:1px solid #f3f4f6;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v ?? '—'}</td>`;
+          })
+          .join('');
+        return `<tr style="background:white">${tds}</tr>`;
+      })
+      .join('');
+    const more =
+      result.details.length > 15
+        ? `<tr><td colspan="${headers.length}" style="padding:10px 14px;font-size:12px;color:#9ca3af;text-align:center">还有 ${result.details.length - 15} 条未显示</td></tr>`
+        : '';
     detailsHtml = `
         <tr><td style="padding:24px 32px 0">
           <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:10px">📋 执行详情</div>
@@ -220,7 +264,7 @@ async function sendNotification(): Promise<void> {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${RESEND_API_KEY}`,
+      Authorization: `Bearer ${RESEND_API_KEY}`,
     },
     body: JSON.stringify({
       from: 'Cloudflare Assets <onboarding@resend.dev>',
@@ -240,7 +284,7 @@ async function sendNotification(): Promise<void> {
   console.log('✅ 邮件发送成功! ID:', data.id);
 }
 
-sendNotification().catch(err => {
+sendNotification().catch((err) => {
   console.error('❌ 发送邮件时出错:', err);
   process.exit(1);
 });

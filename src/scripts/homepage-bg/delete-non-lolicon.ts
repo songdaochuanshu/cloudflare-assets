@@ -15,7 +15,10 @@ async function main(): Promise<void> {
   // 读取 PID 列表（每行一个 PID）
   const pidText = readFileSync('delete-pids.txt', 'utf8');
   const deletePids = new Set<string>(
-    pidText.split('\n').map((line: string) => line.trim()).filter((line: string) => line.length > 0)
+    pidText
+      .split('\n')
+      .map((line: string) => line.trim())
+      .filter((line: string) => line.length > 0),
   );
   console.log('要删除的图片 PID 数量: ' + deletePids.size);
 
@@ -65,7 +68,7 @@ async function main(): Promise<void> {
       details.push({ key, status: '失败' });
       failed++;
     }
-    await new Promise<void>(r => setTimeout(r, 100));
+    await new Promise<void>((r) => setTimeout(r, 100));
   }
 
   console.log('\n========== 完成 ==========');
