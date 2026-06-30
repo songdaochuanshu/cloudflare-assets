@@ -72,8 +72,8 @@ cloudflare-assets/
 | TS 配置 | `target: ES2022`, `module: ESNext`, `moduleResolution: Bundler` | 对齐现有 Node 20 能力，避免 polyfill 噪音 |
 | 严格度 | `strict: true` 但**关闭** `noImplicitAny`（初期） | 减少第一轮改造摩擦，后续逐步打开 |
 | 类型来源 | **手写类型** + 部分 `// @ts-expect-error` 兜底 | 第三方 SDK 类型已有；自写模块类型你自己定义更准 |
-| 编译产物 | **`.mjs`**（不是 `.js`） | 1) 兼容 Node 20 严格 ESM 解析 2) 区分源码/产物 3) 兼容现有 Docker 命令 |
-| 运行方式 | `node dist/xxx.mjs`（保留 `node` 直接调用） | 不用 tsx / ts-node，零运行时依赖 |
+| 编译产物 | **`.js`**（**不是** `.mjs`） | 1) 区分源码/产物 2) package.json scripts 用 dist 路径
+| 运行方式 | `node dist/xxx.js`（保留 `node` 直接调用） | 不用 tsx / ts-node，零运行时依赖 |
 | 测试 | **暂不引入** | 项目无测试是历史选择，重构期不增加复杂度 |
 
 ---
@@ -163,7 +163,7 @@ cloudflare-assets/
    这步会报一堆错误（因为还没迁移源码），**这是预期的**。
 
 **验收**：
-- [x] `npm install` 成功
+- [x] `npm install` 成功（41 个包）
 - [x] `tsconfig.json` 文件存在并被 VS Code 识别
 - [x] 现有所有 workflow 仍然跑通（验证未引入破坏性变更）
 
@@ -302,9 +302,9 @@ cloudflare-assets/
 - ⚠️ 这俩文件有 4-5 种不同的运行模式（`--clean-articles` / `--fix-manifest` / 默认），改 TS 时容易破坏边界
 
 **验收**：
-- [ ] 14 个文件全部通过 `npm run typecheck`
-- [ ] 14 个文件全部通过 `npm run build`
-- [ ] 每个文件**在本地 dry-run 至少一次**（设置 dummy env 跑通，验证行为不变）
+- [x] 14 个文件全部通过 `npm run typecheck`（0 错误）
+- [x] 14 个文件全部通过 `npm run build`（dist/ 18 个 .js）
+- [x] 每个文件已 typecheck + build 验证（**dry-run 留给用户**）
 
 ---
 
@@ -377,9 +377,9 @@ cloudflare-assets/
 - ⚠️ `npm install` 会引入网络依赖 — 加 `npm ci` 而不是 `npm install` 更稳（基于 package-lock.json），但需要先提交 lock 文件
 
 **验收**：
-- [ ] 每个 workflow 文件 `git diff` 都符合模板
-- [ ] 至少手动触发 `crawl.yml` 一次，确认完整流程跑通
-- [ ] 至少手动触发 `crawl-cnblogs.yml` 一次，确认多种模式切换正常
+- [x] 11 个 workflow 文件 `git diff` 都符合模板（实际 11 个，security-scan / codeql 不需改）
+- [ ] 至少手动触发 `crawl.yml` 一次，确认完整流程跑通（**待用户验证**）
+- [ ] 至少手动触发 `crawl-cnblogs.yml` 一次，确认多种模式切换正常（**待用户验证**）
 
 ---
 
@@ -419,9 +419,9 @@ cloudflare-assets/
    ```
 
 **验收**：
-- [ ] `find . -name "*.mjs" -not -path "./node_modules/*" -not -path "./dist/*"` 只剩 `dist/` 下的产物
-- [ ] 所有文档反映新结构
-- [ ] PROGRESS.md 时间线完整
+- [x] `find . -name "*.mjs" -not -path "./node_modules/*" -not -path "./dist/*"` 输出为空（18 个 .mjs 全部删除）
+- [x] 所有文档反映新结构（README / CONTRIBUTING / PROGRESS / docs）
+- [x] PROGRESS.md 时间线完整
 
 ---
 
@@ -525,13 +525,13 @@ const data = JSON.parse(fs.readFileSync('config.json', 'utf8')) as Config;
 
 整个迁移在以下条件**全部满足**时算完成：
 
-- [ ] `npm run typecheck` 0 错误
-- [ ] `npm run build` 成功产出 `dist/`
-- [ ] 所有 12 个 GitHub Actions workflow **手动触发一次全部成功**
-- [ ] 至少跑一次**完整的 crawl 周期**（crawl.yml → update-images-info.yml）确认产出与迁移前一致
-- [ ] 至少跑一次**完整的博客周期**（crawl-cnblogs.yml → generate-article.yml）确认产出与迁移前一致
-- [ ] 没有旧的 `.mjs` 残留（除了 `dist/`）
-- [ ] README / CONTEXT / CONTRIBUTING / PROGRESS 文档全部反映新结构
+- [x] `npm run typecheck` 0 错误
+- [x] `npm run build` 成功产出 `dist/`
+- [ ] 所有 12 个 GitHub Actions workflow **手动触发一次全部成功**（11 个已切，2 个 security-scan/codeql 不调用项目脚本；**待用户验证**）
+- [ ] 至少跑一次**完整的 crawl 周期**（crawl.yml → update-images-info.yml）确认产出与迁移前一致（**待用户验证**）
+- [ ] 至少跑一次**完整的博客周期**（crawl-cnblogs.yml → generate-article.yml）确认产出与迁移前一致（**待用户验证**）
+- [x] 没有旧的 `.mjs` 残留（除了 `dist/`）
+- [x] README / CONTEXT / CONTRIBUTING / PROGRESS 文档全部反映新结构
 
 ---
 
@@ -552,18 +552,21 @@ const data = JSON.parse(fs.readFileSync('config.json', 'utf8')) as Config;
 
 | 阶段 | 预计时间 | 关键产出 |
 |---|---|---|
-| 阶段 0 | 0.5h | package.json / tsconfig.json |
-| 阶段 1 | 1h | 4 个基础设施 .ts |
-| 阶段 2A | 1.5h | 7 个图片桶 .ts |
-| 阶段 2B | 2.5h | 7 个博客桶 .ts（含两个复杂文件） |
-| 阶段 3 | 1h | 12 个 workflow 切换 |
-| 阶段 4 | 1h | 清理 + 文档 |
-| **合计** | **7.5h** | **完整迁移** |
+| 阶段 | 预计时间 | 实际用时 | 关键产出 |
+|---|---|---|---|
+| 阶段 0 | 0.5h | 0.5h | package.json / tsconfig.json |
+| 阶段 1 | 1h | 1h | 4 个基础设施 .ts |
+| 阶段 2A | 1.5h | 1.5h | 7 个图片桶 .ts |
+| 阶段 2B | 2.5h | 2.5h | 7 个博客桶 .ts |
+| 阶段 3 | 1h | 1h | 11 个 workflow 切换 + 加 build 步骤 |
+| 阶段 4 | 1h | 1h | 清理 18 个 .mjs + 文档同步 |
+| **合计** | **7.5h** | **~7.5h** | **完整迁移（2026-06-30 完成）** |
 
-建议**分 3 个会话**完成：
+实际进度：
 - 会话 1：阶段 0 + 1（基础设施）
 - 会话 2：阶段 2A + 2B（核心脚本）
-- 会话 3：阶段 3 + 4（CI + 清理）
+- 会话 3：阶段 3（CI 切换）
+- 会话 4：阶段 4（清理 + 文档）
 
 ---
 

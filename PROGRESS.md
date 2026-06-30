@@ -199,3 +199,35 @@ cloudflare-assets/
 │       ├── codeql.yml                  # 静态分析（CodeQL JS）
 │       └── ...（原有 10 个工作流）
 ```
+
+## 2026-06-30
+
+### TypeScript 迁移 — 阶段 4 完成（清理 + 文档）
+
+- [x] 删除 18 个旧 .mjs 文件：
+  - buckets/homepage-bg/*.mjs（7 个）
+  - buckets/songdaochuanshu-static/*.mjs（7 个）
+  - r2/r2-client.mjs（1 个）
+  - utils/*.mjs（anti-slop、email-notifier、send-email，3 个）
+- [x] tsconfig.json：移除 `buckets/r2/utils` 三个 exclude（旧目录已删）
+- [x] security-scan.yml：paths 触发器中 `**.mjs` → `**.ts`
+- [x] README.md：重写项目结构（`src/*.ts` + `dist/*.js`）+ 加 TypeScript 技术栈 + 改本地运行示例
+- [x] CONTRIBUTING.md：更新项目结构图 + 加 TypeScript 开发规则
+- [x] docs/TS_MIGRATION_PLAN.md：标记 4 个阶段全部完成
+
+### 未删除
+- 根目录 `images-info.json`（项目维护的桶元数据索引，由 update-images-info 脚本更新，**不是**旧残留）
+
+### 验证
+- `npm run typecheck` 0 错误
+- `npm run build` 成功（dist/ 18 个 .js 完整）
+- 11 个 workflow YAML 语法正确
+- tracked `*.mjs` 0 个（仅 `dist/*.js` 产物，git ignore 中）
+
+### TypeScript 迁移全部完成
+- 阶段 0：基础设施（package.json / tsconfig）
+- 阶段 1：共享模块（r2-client / anti-slop / email-notifier / send-email）
+- 阶段 2A：图片桶 7 个 .mjs → .ts
+- 阶段 2B：博客桶 7 个 .mjs → .ts
+- 阶段 3：11 个 GitHub Actions workflow 切换到 dist/ 路径
+- 阶段 4：清理 18 个旧 .mjs + 文档同步

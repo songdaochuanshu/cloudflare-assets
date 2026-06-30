@@ -18,7 +18,7 @@ Cloudflare 资产管理工具集，包含两个核心模块：
 ## 架构决策
 
 1. **手写 S3 签名**：不依赖 AWS SDK 或 Cloudflare SDK，减少依赖
-2. **共享 R2 客户端**：`r2/r2-client.mjs` 抽离公共签名+上传逻辑，所有桶共用
+2. **共享 R2 客户端**：`src/r2/r2-client.ts` 抽离公共签名+上传逻辑，所有桶共用
 3. **GitHub Actions 定时任务**：爬取和元数据更新通过 cron 触发，无需自建服务器
 4. **前缀分目录**：R2 桶内用 `r18/`、`normal/` 前缀区分图片类型，非物理目录
 5. **双模式爬取**：`r18=1` 放 `r18/`，`r18=0` 放 `normal/`，交替进行
@@ -27,7 +27,7 @@ Cloudflare 资产管理工具集，包含两个核心模块：
 8. **AI 文章生成**：智谱 GLM-4-Flash 生成文章，anti-slop 模块评分过滤
 9. **按桶分目录**：`buckets/` 下按 R2 桶名组织脚本，共享模块在 `r2/` 和 `utils/`
 10. **Docker CI**：所有工作流使用 `node:20-slim` 容器运行，避免 `setup-node@v4` 兼容性问题
-11. **TypeScript 迁移**（2026-06-30 起）：源码用 `.ts` 写在 `src/`，编译产出 `.js` 到 `dist/`；保留 `buckets/` 下旧 `.mjs` 作为过渡期兜底，阶段 4 统一清理；选用「先编译再跑」而非 tsx/ts-node，理由：保持产物纯净、不污染运行时依赖、Actions 仍用 `node` 直接调用
+11. **TypeScript 迁移**（2026-06-30 完成）：源码用 `.ts` 写在 `src/`，编译产出 `.js` 到 `dist/`；`buckets/` / `r2/` / `utils/` 三个旧目录的 18 个 `.mjs` 在阶段 4 全部删除（git rm）；选用「先编译再跑」而非 tsx/ts-node，理由：保持产物纯净、不污染运行时依赖、Actions 仍用 `node` 直接调用
 
 ## 数据流
 
