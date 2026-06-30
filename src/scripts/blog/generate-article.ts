@@ -83,7 +83,7 @@ function callZhipu(prompt: string, maxTokens = 300): Promise<string> {
           } else {
             reject(new Error(`AI 返回格式错误:${data}`));
           }
-        } catch (e) {
+        } catch (e: unknown) {
           const msg = e instanceof Error ? e.message : String(e);
           reject(new Error(`解析 AI 响应失败(${msg}):${data.substring(0, 200)}`));
         }
@@ -157,7 +157,7 @@ async function getUsedTitles(): Promise<string[]> {
     }
     console.log(`[generate-article] R2 已有 ${titles.length} 篇文章`);
     return titles;
-  } catch (e) {
+  } catch { // e unused
     console.log('[generate-article] R2 读取失败,视为空白');
     return [];
   }
@@ -324,10 +324,6 @@ ${content}`;
 }
 
 // 从文章内容提取标题
-function extractTitle(content: string): string {
-  const match = content.match(/^#\s+(.+)$/m);
-  return match?.[1]?.trim() ?? '无标题';
-}
 
 // 上传到 R2
 async function uploadToR2(topic: string, content: string, category: string, tags: string[]): Promise<string> {
@@ -400,7 +396,7 @@ async function updateManifest(post: ManifestPost): Promise<void> {
     });
     await s3.send(cmd2);
     console.log('[generate-article] ✅ manifest.json 已更新');
-  } catch (e) {
+  } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error('[generate-article] manifest 更新失败:', msg);
   }
@@ -433,7 +429,7 @@ async function main(): Promise<void> {
     console.log('[generate-article] 🏷️  AI 生成分类标签...');
     const { category, tags } = await askAIForCategoryAndTags(topic, polished);
 
-    const filename = await uploadToR2(topic, polished, category, tags);
+    await uploadToR2(topic, polished, category, tags);
 
     const date = new Date().toISOString().split('T')[0] ?? '';
     const slug = topic.toLowerCase().replace(/[^\w一-龥]+/g, '-').replace(/^[-]+|[-]+$/g, '').substring(0, 50);
@@ -480,4 +476,4 @@ async function main(): Promise<void> {
   }
 }
 
-main();
+void main();

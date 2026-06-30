@@ -22,4 +22,4 @@ async function main(): Promise<void> {
   console.log('\n文件夹数: ' + folders.length + ', 根目录文件数: ' + keys.length);
 }
 
-main();
+void main();

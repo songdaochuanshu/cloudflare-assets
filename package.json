@@ -12,6 +12,9 @@
     "test:coverage": "vitest run --coverage",
     "clean": "rm -rf dist",
     "rebuild": "npm run clean && npm run build",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
     "crawl": "node dist/scripts/homepage-bg/crawl-lolicon.js",
     "update-images-info": "node dist/scripts/homepage-bg/update-images-info.js",
     "delete-images": "node dist/scripts/homepage-bg/delete-images.js",
@@ -28,8 +31,27 @@
     "cdn-list": "node dist/scripts/cdn/list-domains.js",
     "cdn-sync": "node dist/scripts/cdn/sync-domains.js"
   },
+  "lint-staged": {
+    "*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.0",
+    "@commitlint/config-conventional": "^21.2.0",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^20.17.0",
+    "@typescript-eslint/eslint-plugin": "^8.62.1",
+    "@typescript-eslint/parser": "^8.62.1",
+    "eslint": "^10.6.0",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
+    "prettier": "^3.9.4",
     "typescript": "^5.6.0",
     "vitest": "^4.1.9"
   },

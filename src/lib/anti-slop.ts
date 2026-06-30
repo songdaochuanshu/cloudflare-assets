@@ -67,7 +67,7 @@ const DELETE_LINE_PATTERNS: RegExp[] = [
 // 第二层：句子内替换（不限制行首行尾）
 // ──────────────────────────────────────────────
 
-type ReplacementTuple = [RegExp, string | ((substring: string, ...args: any[]) => string)];
+type ReplacementTuple = [RegExp, string | ((_: string, ..._a: any[]) => string)]; // eslint-disable-line no-unused-vars -- type parameter names
 
 const REPLACEMENTS: ReplacementTuple[] = [
   // 开场白（句子内匹配，去掉后保留后面的内容）

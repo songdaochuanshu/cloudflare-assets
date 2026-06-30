@@ -1,8 +1,7 @@
 // fix-manifest-tags.ts
 // 读取 R2 中所有 markdown 文章，用 AI 修复 frontmatter 的分类和标签，同步更新 manifest.json
 import https from 'node:https';
-import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, HeadObjectCommand } from '@aws-sdk/client-s3';
-import type { _Object } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { writeWorkflowResult, elapsed } from '../../lib/workflow-result.js';
 
 const R2_ENDPOINT = `https://${process.env.CF_ACCOUNT_ID ?? ''}.r2.cloudflarestorage.com`;
@@ -141,7 +140,7 @@ async function main(): Promise<void> {
   const response = await s3.send(listCmd);
 
   const articles: Article[] = [];
-  for (const obj of (response.Contents ?? []) as _Object[]) {
+  for (const obj of (response.Contents ?? [])) {
     if (!obj.Key || !obj.Key.endsWith('.md')) continue;
     try {
       const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: obj.Key });
@@ -192,8 +191,8 @@ async function main(): Promise<void> {
 
     if (hasCategory && hasTags) {
       // 已有有效分类标签，直接用
-      category = catM![1].trim();
-      try { tags = JSON.parse(tagsM![1].trim()) as string[]; } catch { tags = []; }
+      category = catM[1].trim();
+      try { tags = JSON.parse(tagsM[1].trim()) as string[]; } catch { tags = []; }
       console.log(`  ⏭️  ${title} — 已有分类[${category}]，跳过 AI`);
     } else {
       // 需要 AI 补充

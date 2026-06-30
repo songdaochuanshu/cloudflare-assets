@@ -29,7 +29,7 @@ let summary: CrawlSummary;
 try {
   const summaryPath = './crawl-summary.json';
   summary = JSON.parse(readFileSync(summaryPath, 'utf8'));
-} catch (e) {
+} catch { // ignore
   summary = {
     success: false,
     error: '无法读取 crawl-summary.json',

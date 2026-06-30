@@ -32,7 +32,6 @@ interface UploadedStats {
   normal: number;
 }
 
-const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
 
 const RUN_DURATION = 5 * 60 * 1000;
 const MIN_DELAY = 15000;
@@ -241,4 +240,4 @@ async function main(): Promise<void> {
   console.log('\n详细结果已保存到 crawl-summary.json');
 }
 
-main();
+void main();

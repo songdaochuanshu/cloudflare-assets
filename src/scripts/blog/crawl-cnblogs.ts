@@ -3,7 +3,6 @@
 
 import https from 'node:https';
 import { S3Client, PutObjectCommand, ListObjectsV2Command, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
-import type { _Object } from '@aws-sdk/client-s3';
 import { writeWorkflowResult, elapsed } from '../../lib/workflow-result.js';
 
 // R2 配置
@@ -144,7 +143,7 @@ function fetchHtml(url: string): Promise<string> {
 
 // 从 HTML 提取文章链接
 function extractArticleLinks(html: string): string[] {
-  const pattern = /href="(https?:\/\/www\.cnblogs\.com\/[^\/]+\/p\/\d+)"/g;
+const pattern = /href="(https?:\/\/www\.cnblogs\.com\/[^\/]+\/p\/\d+)"/g;
   const matches = new Set<string>();
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(html)) !== null) {
@@ -227,7 +226,7 @@ async function getExistingTitles(): Promise<Set<string>> {
   const command = new ListObjectsV2Command({ Bucket: R2_BUCKET, Prefix: 'blog/' });
   const response = await s3.send(command);
   const titles = new Set<string>();
-  for (const obj of (response.Contents ?? []) as _Object[]) {
+  for (const obj of (response.Contents ?? [])) {
     if (obj.Key?.endsWith('.md')) {
       try {
         const getCmd = new GetObjectCommand({ Bucket: R2_BUCKET, Key: obj.Key });
@@ -266,7 +265,7 @@ async function updateManifest(): Promise<void> {
   const response = await s3.send(listCmd);
 
   const posts: ManifestPost[] = [];
-  for (const obj of (response.Contents ?? []) as _Object[]) {
+  for (const obj of (response.Contents ?? [])) {
     if (!obj.Key?.endsWith('.md')) continue;
 
     let lastModified = new Date();
@@ -422,7 +421,7 @@ async function cleanArticles(): Promise<void> {
   const response = await s3.send(listCmd);
 
   let cleaned = 0;
-  for (const obj of (response.Contents ?? []) as _Object[]) {
+  for (const obj of (response.Contents ?? [])) {
     if (!obj.Key?.endsWith('.md')) continue;
 
     try {
@@ -465,7 +464,7 @@ async function cleanArticles(): Promise<void> {
 
 // 命令行参数处理
 if (process.argv.includes('--clean-articles')) {
-  (async () => {
+  void (async () => {
     const startTime = Date.now();
     console.log('[crawl-cnblogs] --clean-articles 模式：批量清理爬取痕迹');
     try {
@@ -481,7 +480,7 @@ if (process.argv.includes('--clean-articles')) {
     }
   })();
 } else if (process.argv.includes('--fix-manifest')) {
-  (async () => {
+  void (async () => {
     const startTime = Date.now();
     console.log('[crawl-cnblogs] --fix-manifest 模式：只修复 manifest.json');
     try {

@@ -4,7 +4,7 @@ import {
   listR2Domains, listPagesDomains,
   listWorkerRoutes, listWorkerDomains, listZones,
 } from '../../lib/cf-api.js';
-import type { R2CustomDomain, PagesDomain, WorkerRoute, WorkerDomain, Zone } from '../../lib/cf-api.js';
+// Type imports kept for documentation// import type { R2CustomDomain, PagesDomain, WorkerRoute, WorkerDomain, Zone } from '../../lib/cf-api.js';
 import { readFileSync } from 'node:fs';
 
 interface DomainsConfig {

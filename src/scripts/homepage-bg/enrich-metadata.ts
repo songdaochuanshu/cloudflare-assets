@@ -141,4 +141,4 @@ async function main(): Promise<void> {
   console.log('⚠️  请手动运行 update-images-info.ts 上传到 R2');
 }
 
-main();
+void main();

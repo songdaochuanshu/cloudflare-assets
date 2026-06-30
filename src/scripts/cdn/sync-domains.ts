@@ -32,7 +32,7 @@ async function syncR2(config: DomainsConfig): Promise<{ added: string[]; removed
 
   for (const [bucket, cfg] of Object.entries(config.r2 ?? {})) {
     const desired = new Set(cfg.domains);
-    let current: { domain: string }[] = [];
+    let current: { domain: string }[] ;  
     try {
       current = await listR2Domains(bucket);
     } catch (e: unknown) {
@@ -85,7 +85,7 @@ async function syncPages(config: DomainsConfig): Promise<{ added: string[]; remo
 
   for (const [project, cfg] of Object.entries(config.pages ?? {})) {
     const desired = new Set(cfg.domains);
-    let current: { name: string }[] = [];
+    let current: { name: string }[] ;  
     try {
       current = await listPagesDomains(project);
     } catch (e: unknown) {
@@ -136,7 +136,7 @@ async function syncWorkerRoutes(config: DomainsConfig): Promise<{ added: string[
   const desiredRoutes = config.workers?.routes ?? [];
   if (desiredRoutes.length === 0 && !config.workers?.routes) return { added, removed, kept, errors };
 
-  let current: { id: string; pattern: string; script: string }[] = [];
+  let current: { id: string; pattern: string; script: string }[] ;  
   try {
     current = await listWorkerRoutes();
   } catch (e: unknown) {
@@ -184,7 +184,7 @@ async function syncWorkerDomains(config: DomainsConfig): Promise<{ added: string
   const desired = config.workers?.domains ?? {};
   if (Object.keys(desired).length === 0 && !config.workers?.domains) return { added, removed, kept, errors };
 
-  let current: { id: string; hostname: string; service: string }[] = [];
+  let current: { id: string; hostname: string; service: string }[] ;  
   try {
     current = await listWorkerDomains();
   } catch (e: unknown) {
