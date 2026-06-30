@@ -61,6 +61,8 @@ const WORKFLOW_NAMES: Record<string, string> = {
   'list-prefixes': 'R2 前缀列表',
   'enrich-metadata': '图片元数据补全',
   'fix-images-info-structure': 'images-info 结构修复',
+  'list-domains': 'CDN 域名列表',
+  'sync-domains': 'CDN 域名同步',
 };
 
 const STAT_LABELS: Record<string, string> = {
