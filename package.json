@@ -29,7 +29,11 @@
     "delete-first-posts": "node dist/scripts/blog/delete-first-posts.js",
     "delete-old-posts": "node dist/scripts/blog/delete-old-posts.js",
     "cdn-list": "node dist/scripts/cdn/list-domains.js",
-    "cdn-sync": "node dist/scripts/cdn/sync-domains.js"
+    "cdn-sync": "node dist/scripts/cdn/sync-domains.js",
+    "changeset": "changeset",
+    " changeset:add": "changeset add",
+    " changeset:version": "changeset version",
+    " changeset:release": "changeset publish"
   },
   "lint-staged": {
     "*.ts": [
@@ -41,6 +45,7 @@
     ]
   },
   "devDependencies": {
+    "@changesets/cli": "^2.31.0",
     "@commitlint/cli": "^21.2.0",
     "@commitlint/config-conventional": "^21.2.0",
     "@eslint/js": "^10.0.1",
@@ -52,6 +57,7 @@
     "eslint-config-prettier": "^10.1.8",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.8",
+    "npm-audit-resolver": "^3.0.0-RC.0",
     "prettier": "^3.9.4",
     "typescript": "^5.6.0",
     "vitest": "^4.1.9",
@@ -59,9 +65,15 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.700.0",
-    "debug": "^4.4.3"
+    "debug": "^4.4.3",
+    "isomorphic-dompurify": "^3.18.0",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3"
   },
   "engines": {
     "node": ">=20"
+  },
+  "release": {
+    "tagFormat": "{version}"
   }
 }

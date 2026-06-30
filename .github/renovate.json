@@ -1,0 +1,41 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:best-practices"],
+  "description": "Auto-update dependencies for cloudflare-assets",
+  "schedule": ["every weekend"],
+  "pinDependencies": false,
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 3,
+  "prHourlyLimit": 2,
+  "automerge": true,
+  "automergeType": "pr",
+  "separateMajorMinor": true,
+  "separateMinorPatch": true,
+  "packageRules": [
+    {
+      "groupName": "linting-tools",
+      "matchPackagePatterns": ["^eslint", "^prettier", "^@typescript-eslint", "^@commitlint"],
+      "schedule": ["every Monday"]
+    },
+    {
+      "groupName": "testing-tools",
+      "matchPackagePatterns": ["^vitest", "^@vitest", "^@types/"],
+      "schedule": ["every Monday"]
+    },
+    {
+      "matchPackagePatterns": ["^pino", "^pino-pretty"],
+      "automerge": false,
+      "labels": ["security"]
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["breaking"]
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "automerge": false,
+    "assignees": ["@songdaochuanshu"]
+  }
+}
