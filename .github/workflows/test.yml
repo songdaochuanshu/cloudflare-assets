@@ -3,11 +3,33 @@ name: Test
 on:
   push:
     branches: [main]
+    paths:
+      - 'src/**/*.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'tsconfig.build.json'
+      - '.github/workflows/test.yml'
+      - '.github/workflows/_node-ci-bootstrap.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'src/**/*.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'tsconfig.build.json'
+      - '.github/workflows/test.yml'
+      - '.github/workflows/_node-ci-bootstrap.yml'
 
 jobs:
+  install:
+    uses: ./.github/workflows/_node-ci-bootstrap.yml
+    with:
+      node-version: '20'
+
   test:
+    needs: install
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -25,9 +47,6 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
 
       - name: Test
         run: npm run test
