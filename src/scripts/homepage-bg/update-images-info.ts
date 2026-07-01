@@ -84,7 +84,7 @@ async function main(): Promise<void> {
 
   // 上传 images-info.json 到 R2
   console.log('\n上传 images-info.json 到 R2...');
-  const ok = await uploadToR2('images-info.json', jsonContent, 'application/json');
+  const ok = await uploadToR2('images-info.json', jsonContent, { contentType: 'application/json' });
   if (ok) {
     console.log('✅ images-info.json 已上传到 R2');
   } else {

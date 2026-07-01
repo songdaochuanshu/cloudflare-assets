@@ -220,7 +220,7 @@ export async function uploadToR2(
           )
         : {}),
     },
-    body,
+    body: body as any,
   });
   if (!resp.ok) {
     const respBody = await resp.text().catch(() => '(unable to read body)');

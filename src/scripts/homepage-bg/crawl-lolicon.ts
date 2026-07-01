@@ -188,7 +188,7 @@ async function main(): Promise<void> {
 
     for (const item of pending) {
       process.stdout.write('  上传 ' + item.r2Key + '... ');
-      const ok = await uploadToR2(item.r2Key, item.imgData, item.contentType);
+      const ok = await uploadToR2(item.r2Key, item.imgData, { contentType: item.contentType });
       if (ok) {
         console.log('OK');
         uploaded[item.label === 'R18' ? 'r18' : 'normal']++;

@@ -46,7 +46,7 @@ export class ApiError extends AppError {
     this.statusCode = statusCode;
   }
 
-  toJSON() {
+  override toJSON() {
     return { ...super.toJSON(), statusCode: this.statusCode };
   }
 }
