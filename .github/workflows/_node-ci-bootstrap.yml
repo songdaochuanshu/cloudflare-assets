@@ -1,0 +1,55 @@
+name: Node CI Bootstrap
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        required: false
+        type: string
+        default: '20'
+      run-build:
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      inherit: false
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+          key: ${{ runner.os }}-node-${{ inputs.node-version }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ inputs.node-version }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache dist
+        if: ${{ inputs.run-build }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            dist
+          key: ${{ runner.os }}-dist-${{ hashFiles('**/package-lock.json', 'tsconfig.build.json') }}
+          restore-keys: |
+            ${{ runner.os }}-dist-
+
+      - name: Build
+        if: ${{ inputs.run-build }}
+        run: npm run build

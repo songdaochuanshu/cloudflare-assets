@@ -1,0 +1,28 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**/*.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'tsconfig.build.json'
+      - '.github/workflows/build.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**/*.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'tsconfig.build.json'
+      - '.github/workflows/build.yml'
+
+jobs:
+  build:
+    uses: ./.github/workflows/_node-ci-bootstrap.yml
+    with:
+      node-version: '20'
+      run-build: true

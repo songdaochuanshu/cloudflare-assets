@@ -134,16 +134,20 @@ describe('r2-client', () => {
     });
 
     it('listAllKeys 在 HTTP 失败时抛出 R2Error', async () => {
-      vi.stubGlobal(
-        'fetch',
-        vi.fn(async () => ({
-          ok: false,
-          status: 500,
-          text: async () => 'error',
-        })),
-      );
+      vi.useFakeTimers();
+      const fetchMock = vi.fn(async () => ({
+        ok: false,
+        status: 500,
+        text: async () => 'error',
+      }));
+      vi.stubGlobal('fetch', fetchMock);
 
-      await expect(listAllKeys()).rejects.toThrow('R2 list failed: HTTP 500');
+      const p = listAllKeys();
+      const assertion = expect(p).rejects.toThrow('R2 list failed: HTTP 500');
+      await vi.runAllTimersAsync();
+      await assertion;
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      vi.useRealTimers();
     });
 
     it('listAllKeys 支持 prefix 参数', async () => {
