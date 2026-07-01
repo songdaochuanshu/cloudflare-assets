@@ -31,6 +31,9 @@ jobs:
           R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
           R2_HOMEPAGE_BUCKET: homepage-bg
 
+      - name: Format images-info.json
+        run: npx prettier --write images-info.json
+
       - name: Commit and push if changed
         run: |
           git config user.name "github-actions[bot]"
