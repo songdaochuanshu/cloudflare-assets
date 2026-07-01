@@ -28,6 +28,16 @@
 
 ## 🚀 实施计划（按性价比排序）
 
+## ✅ 实施原则（先把坑填上）
+
+为避免“看起来很对、落地全是坑”，本计划在实施时遵循以下原则：
+
+- PR 上只跑“纯本地验证”的工作流（lint / typecheck / test / build），不在 PR 上跑会触网/写入资源/依赖 secrets 的任务
+- retry 只针对“可重试错误”（网络错误、超时、5xx、429），对 4xx（除 429）直接失败；对可能产生重复写入的操作做幂等保护
+- ESLint 降噪分层处理：`src/scripts/**` 先降噪，`src/lib/**` 保持更严格的约束，避免长期质量滑坡
+- workflow 改造优先“抽模板复用”，避免 11 个文件复制粘贴导致后续漂移
+- 依赖更新只选一种（Dependabot 或 Renovate），避免双轨噪音和冲突
+
 ### 【Phase 1】高价值低成本（1-2 天）
 
 #### 1.1 去 Docker 化 workflow ⚡⚡⚡
@@ -74,7 +84,11 @@
 
 **问题**：grep `retry` 在 `src/` 下 0 命中。所有 R2 / Zhipu / CF API 调用都是一次性 `fetch`，网络抖动直接挂，半夜误报警。
 
-**方案**：新建 `src/lib/retry.ts`：
+**方案**：新建 `src/lib/retry.ts`，并明确重试边界：
+
+- 仅对以下情况重试：网络错误/超时、HTTP 5xx、HTTP 429
+- 不对以下情况重试：HTTP 4xx（除 429）、鉴权失败、参数校验失败
+- 对可能产生重复写入的操作做幂等保护（例如：先查存在再写、写入使用固定 key、写入后校验）
 
 ```typescript
 // 指数退避 + 抖动，最多 3 次
@@ -111,10 +125,11 @@ export async function withRetry<T>(
 - `no-console`（~277 处）
 - `no-explicit-any`（少量）
 
-**方案**：
+**方案**（分层降噪，避免质量滑坡）：
 
-- 把这两条规则从 `warn` 调成 `off`（务实路线，迁移到 logger 是另一期工程）
-- 或者 `npm run lint:fix` 批量修能修的
+- `src/scripts/**`：允许或降级 `no-console`，先把 CI 噪音压下去
+- `src/lib/**`：保留对 `console` 的约束（至少不放宽），推动库代码走结构化日志
+- `no-explicit-any` 视实际噪音决定是否维持 warn；新增代码尽量不引入 any
 
 **收益**：CI 输出干净，看 warning 的人不会被噪音淹没
 
@@ -149,7 +164,11 @@ export async function withRetry<T>(
 
 **问题**：`update-images-info.yml` 等只在 push main 时跑，分支改了没法早期发现。
 
-**方案**：
+**方案**（只给“安全的工作流”加 PR 触发）：
+
+- PR 触发只覆盖：lint / typecheck / test / build（不依赖 secrets、不触网、不写入外部资源）
+- 需要 secrets / 触网 / 写入资源的 workflow：继续仅 `push main` / `schedule` / `workflow_dispatch`
+- 如果确实需要在 PR 里验证“会触网的逻辑”，优先加 dry-run/mock 模式，而不是直接把真实任务挂到 PR 上
 
 ```yaml
 on:
@@ -162,7 +181,10 @@ on:
 
 #### 2.4 Dependabot / Renovate
 
-**方案**：在 `.github/dependabot.yml` 配置 npm + github-actions 周更。
+**方案**：二选一，避免双轨：
+
+- 如果用 Renovate：确认仓库已启用 Renovate（App 安装/权限），并把策略固化在 `.github/renovate.json`
+- 如果用 Dependabot：新增 `.github/dependabot.yml`（npm + github-actions 周更）
 
 ```yaml
 version: 2
@@ -216,8 +238,8 @@ Phase 2: 测试 + CI（3-5 天）
   ☐ 2.1 补 config / errors / workflow-result / sanitize 测试
   ☐ 2.2 关键 scripts 加 happy path 测试
   ☐ 2.3 actions/cache 缓存 node_modules + dist
-  ☐ 2.4 关键 workflow 加 pull_request 触发
-  ☐ 2.5 配置 Dependabot
+  ☐ 2.4 lint/typecheck/test/build 加 pull_request 触发（不触网、不依赖 secrets）
+  ☐ 2.5 配置 Renovate 或 Dependabot（二选一）
 
 Phase 3: 长期（1-2 周）
   ☐ 3.1 评估是否拆 monorepo
@@ -245,7 +267,8 @@ Phase 3: 长期（1-2 周）
 - ☐ 删掉 `send-email.ts`
 - ☐ `src/lib/retry.ts` 存在，`r2-client.ts` 调用全部走 `withRetry`
 - ☐ Phase 1 全套验证：typecheck / lint / test / build 全绿
-- ☐ 模拟一次 R2 5xx → retry 触发 → 第二次成功（用 mock 测试）
+- ☐ retry 验收：模拟一次 R2 5xx 或 429 → retry 触发 → 后续成功（用 mock 测试）
+- ☐ retry 边界：模拟一次 4xx（除 429）→ 不重试，直接失败（用 mock 测试）
 
 ---
 
