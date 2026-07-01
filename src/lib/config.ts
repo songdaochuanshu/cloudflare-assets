@@ -1,9 +1,18 @@
 // config.ts — Zod 环境变量 Schema 校验
 import { z } from 'zod';
 
+// 兼容层：CF_ACCOUNT_ID 兜底给 R2_ACCOUNT_ID（工作流历史只注入 CF_ACCOUNT_ID）
+const envInput = z.record(z.string(), z.string().optional()).transform((raw) => {
+  const out: Record<string, string | undefined> = { ...raw };
+  if (!out.R2_ACCOUNT_ID && out.CF_ACCOUNT_ID) {
+    out.R2_ACCOUNT_ID = out.CF_ACCOUNT_ID;
+  }
+  return out;
+});
+
 const EnvSchema = z.object({
   // R2 必需
-  R2_ACCOUNT_ID: z.string().min(1, 'R2_ACCOUNT_ID is required'),
+  R2_ACCOUNT_ID: z.string().min(1, 'R2_ACCOUNT_ID (or CF_ACCOUNT_ID) is required'),
   R2_KEY_ID: z.string().min(1, 'R2_KEY_ID is required'),
   R2_SECRET_KEY: z.string().min(1, 'R2_SECRET_KEY is required'),
 
@@ -30,7 +39,8 @@ let _cachedEnv: Env | null = null;
 export function loadEnv(): Env {
   if (_cachedEnv) return _cachedEnv;
 
-  const result = EnvSchema.safeParse(process.env);
+  const normalized = envInput.parse(process.env);
+  const result = EnvSchema.safeParse(normalized);
 
   if (!result.success) {
     const errors = result.error.errors.map((e) => `  - ${e.path.join('.')}: ${e.message}`);

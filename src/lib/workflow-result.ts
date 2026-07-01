@@ -3,7 +3,7 @@
 // 所有脚本用这个统一输出 workflow-result.json，供 email-notifier 读取
 
 import { writeFileSync } from 'node:fs';
-import { logger } from './logger';
+import { logger } from './logger.js';
 
 export interface WorkflowResult {
   success: boolean;

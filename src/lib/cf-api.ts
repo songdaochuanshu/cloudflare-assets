@@ -1,7 +1,7 @@
 // src/lib/cf-api.ts
 // Cloudflare REST API 客户端 — 管理 R2 / Pages / Workers 自定义域名
 
-import { logger } from './logger';
+import { logger } from './logger.js';
 
 const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID ?? '';
 const CF_API_TOKEN = process.env.CF_API_TOKEN ?? '';
