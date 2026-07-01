@@ -26,8 +26,10 @@ Cloudflare 资产管理工具集，包含两个核心模块：
 7. **分类元数据**：`images-info.json` 按 `{ "r18": [...], "normal": [...] }` 结构组织
 8. **AI 文章生成**：智谱 GLM-4-Flash 生成文章，anti-slop 模块评分过滤
 9. **按桶分目录**：`buckets/` 下按 R2 桶名组织脚本，共享模块在 `r2/` 和 `utils/`
-10. **Docker CI**：所有工作流使用 `node:20-slim` 容器运行，避免 `setup-node@v4` 兼容性问题
-11. **TypeScript 迁移**（2026-06-30 完成）：源码用 `.ts` 写在 `src/`，编译产出 `.js` 到 `dist/`；`buckets/` / `r2/` / `utils/` 三个旧目录的 18 个 `.mjs` 在阶段 4 全部删除（git rm）；选用「先编译再跑」而非 tsx/ts-node，理由：保持产物纯净、不污染运行时依赖、Actions 仍用 `node` 直接调用
+10. **去 Docker 化 CI**（2026-07-01 完成）：11 个业务 workflow 改用 `actions/setup-node@v4` + `actions/cache` 直接在 runner 跑，弃用 `docker run --rm node:20-slim` 包装；抽复合 action `./.github/actions/node-ci` 供业务 workflow 复用 setup-node + npm ci + typecheck + build，抽 reusable workflow `.github/workflows/_node-ci-bootstrap.yml` 供 test / build 复用
+11. **fetchWithRetry 工具**（2026-07-01 完成）：新建 `src/lib/retry.ts`，封装超时（AbortController）、指数退避 + 抖动、幂等方法判断、5xx/429/网络错误重试；`r2-client.ts` 4 个 API + `cf-api.ts` `cfFetch` 全部接入
+12. **共享邮件模板**（2026-07-01 完成）：新建 `src/lib/email-template.ts`，把 `send-email.ts` 与 `email-notifier.ts` 重复的 HTML 渲染抽成可测的 `buildEmailHTML` / `buildEmailSubject`
+13. **TypeScript 迁移**（2026-06-30 完成）：源码用 `.ts` 写在 `src/`，编译产出 `.js` 到 `dist/`；`buckets/` / `r2/` / `utils/` 三个旧目录的 18 个 `.mjs` 在阶段 4 全部删除（git rm）；选用「先编译再跑」而非 tsx/ts-node，理由：保持产物纯净、不污染运行时依赖、Actions 仍用 `node` 直接调用
 
 ## 数据流
 
@@ -55,6 +57,24 @@ Lolicon API (r18=0) → 下载 → 暂存内存 → 批量上传到 R2 normal/
                 ↓
         博客前端读取 manifest.json 展示
 ```
+
+## CI 流水线（2026-07-01 重构后）
+
+业务 workflow（11 个）按以下模板运行，已去除 Docker 容器包装：
+
+```yaml
+- uses: actions/checkout@v4
+- uses: ./.github/actions/node-ci
+  with:
+    run-typecheck: 'true'
+    run-build: 'true'
+- run: node dist/scripts/.../xxx.js
+  env: { ... }
+```
+
+- 复合 action `./.github/actions/node-ci`：封装 `setup-node@v4`（`cache: 'npm'`）+ `npm ci` + `npm run typecheck` + `npm run build`
+- Reusable workflow `./.github/workflows/_node-ci-bootstrap.yml`：额外提供 `actions/cache` 缓存 `node_modules` / `dist/`，被 `test.yml` / `build.yml` 复用
+- 邮件通知 step 仍保留在所有业务 workflow 末尾（Resend API）
 
 ## 外部依赖
 

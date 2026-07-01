@@ -1,5 +1,62 @@
 # PROGRESS.md — 项目进度
 
+## 2026-07-01
+
+### OPERATIONS_UPGRADE_PLAN Phase 1 + Phase 2 — 完成
+
+#### Phase 1 运维基础 ✅
+
+- [x] **1.1 去 Docker 化 11 个业务 workflow**（commit in `trae/agent-6YfFX5`）
+  - 新增复合 action `./.github/actions/node-ci`（`setup-node@v4` + `cache: 'npm'` + `npm ci` + 可选 typecheck + 可选 build）
+  - 11 个 workflow 全部去 docker：`crawl.yml` / `generate-article.yml` / `update-images-info.yml` / `cdn-list.yml` / `crawl-cnblogs.yml` / `delete.yml` / `delete-first-posts.yml` / `delete-all-posts.yml` / `delete-old-posts.yml` / `cleanup-blog.yml` / `fix-tags.yml`
+  - 业务 step 改为直接在 runner 上 `node dist/scripts/.../*.js`，去掉 `docker run --rm` 包装层
+- [x] **1.3 抽 retry 工具**（`src/lib/retry.ts`）
+  - `fetchWithRetry`：超时（`AbortController`）+ 指数退避 + 抖动 + 幂等方法判断 + 5xx/429/网络错误重试
+  - `r2-client.ts` 4 个 API 全量接入（`listAllKeys` / `listObjects` / `uploadToR2` / `deleteObject`）
+  - `cf-api.ts` `cfFetch` 接入，并对非 JSON / `success=false` 抛 `ApiError`
+- [x] **1.4 ESLint 分层降噪**（`eslint.config.js`）
+  - `src/scripts/**` 关闭 `no-console`，`src/lib/**` 保留约束
+  - 新增 `no-unused-vars` 对 `_` 前缀参数 / 变量 / 捕获异常的忽略规则
+  - 当前 `npm run lint`：**0 errors / 44 warnings**（剩余 warning 全部来自 scripts 既有 `any` / `catch unknown`）
+- [ ] **1.2 删 `send-email.ts`（低优先级延后）**——已通过抽 `src/lib/email-template.ts` 共享 HTML 模板，重复实现消失但旧脚本本身仍存在
+- [x] **1.5 抽邮件模板 + 删 `send-email.ts` 内联实现**
+  - 新增 `src/lib/email-template.ts`，导出 `buildEmailHTML` / `buildEmailSubject`
+  - `send-email.ts` 改为复用模板 + 收敛 `result: any` 为 `{ id?: string }`
+
+#### Phase 2 测试 + CI 优化 ✅（除 2.5 显式 cache）
+
+- [x] **2.1 测试覆盖 29 → 67**
+  - 新增 `src/__tests__/retry.test.ts`（5）
+  - 新增 `src/__tests__/r2-client-retry.test.ts`（6，r2-client × retry 集成）
+  - 新增 `src/__tests__/cf-api.test.ts`（5）
+  - 新增 `src/__tests__/errors.test.ts`（10，含 config happy path + 缓存行为）
+  - 新增 `src/__tests__/workflow-result.test.ts`（3）
+  - 新增 `src/__tests__/sanitize.test.ts`（9）
+  - 新增 `src/__tests__/email-template.test.ts`（10）
+  - `src/__tests__/r2-client.test.ts` HTTP 500 用例改写为验证"重试耗尽后抛 R2Error"
+- [x] **2.2 Actions 缓存（部分）** — `setup-node@v4` 开启 `cache: 'npm'`，自动缓存 `~/.npm`；显式 `actions/cache` 缓存 `node_modules` + `dist/` 已纳入 Phase 3
+- [x] **2.3 关键 workflow 加 `pull_request` 触发**
+  - 新增 `./.github/workflows/build.yml`（仅 PR + push main，带 paths 触发）
+  - 新增 `./.github/workflows/_node-ci-bootstrap.yml` 可复用 workflow（`test.yml` / `build.yml` 复用）
+  - `test.yml`：拆掉重复 lint、保留 typecheck + test、加 paths 触发
+  - `lint.yml`：保持 push main + PR
+- [ ] **2.4 Dependabot / Renovate 延后到 Phase 3** — 仓库暂未启用 Renovate App，Dependabot 配置文件也未提交；本项推迟到 Phase 3 单独一个 PR 处理
+
+#### 关键文件
+
+- 新增：`src/lib/retry.ts`、`src/lib/email-template.ts`、`.github/actions/node-ci/action.yml`、`.github/workflows/_node-ci-bootstrap.yml`、`.github/workflows/build.yml`
+- 新增测试：`src/__tests__/{retry,r2-client-retry,cf-api,errors,workflow-result,sanitize,email-template}.test.ts`
+- 修改：`src/lib/cf-api.ts`、`src/lib/r2-client.ts`、`src/scripts/send-email.ts`、`eslint.config.js`、11 个业务 workflow
+
+#### 验证
+
+- `npm run typecheck` 0 错误
+- `npm run lint` 0 errors / 44 warnings
+- `npm run test` 67/67 全过
+- `npm run build` 成功（`dist/` 产物完整）
+
+---
+
 ## 2026-06-28
 
 ### 完成
