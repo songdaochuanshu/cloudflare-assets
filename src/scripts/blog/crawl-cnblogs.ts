@@ -10,6 +10,8 @@ import {
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 import { writeWorkflowResult, elapsed } from '../../lib/workflow-result.js';
+import { parseJSON } from '../../lib/json-parse.js';
+import { logger } from '../../lib/logger.js';
 
 // R2 配置
 const R2_ENDPOINT = `https://${process.env.CF_ACCOUNT_ID ?? ''}.r2.cloudflarestorage.com`;
@@ -98,12 +100,6 @@ function callZhipu(prompt: string, maxTokens = 300): Promise<string> {
     req.write(payload);
     req.end();
   });
-}
-
-function parseJSON<T = unknown>(raw: string): T {
-  const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) ?? raw.match(/^\s*(\{[\s\S]*\})/);
-  const jsonStr = jsonMatch?.[1] ?? raw;
-  return JSON.parse(jsonStr.trim()) as T;
 }
 
 // ──────────────────────────────────────────────
@@ -288,7 +284,7 @@ async function uploadToR2(title: string, content: string, publishDate: string): 
 
 // 更新 manifest.json（从 frontmatter 读取标题、日期、分类、标签）
 async function updateManifest(): Promise<void> {
-  console.log('[crawl-cnblogs] 开始更新 manifest.json...');
+  logger.info('[crawl-cnblogs] 开始更新 manifest.json...');
 
   const listCmd = new ListObjectsV2Command({ Bucket: R2_BUCKET, Prefix: 'blog/', MaxKeys: 1000 });
   const response = await s3.send(listCmd);
@@ -304,7 +300,7 @@ async function updateManifest(): Promise<void> {
       lastModified = headData.LastModified ?? new Date();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.error(`[crawl-cnblogs] 获取 ${obj.Key} 元数据失败：`, msg);
+      logger.error(`[crawl-cnblogs] 获取 ${obj.Key} 元数据失败：${msg}`);
     }
 
     try {
@@ -351,7 +347,7 @@ async function updateManifest(): Promise<void> {
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.error(`[crawl-cnblogs] 读取 ${obj.Key} 失败：`, msg);
+      logger.error(`[crawl-cnblogs] 读取 ${obj.Key} 失败：${msg}`);
     }
   }
 
@@ -369,26 +365,26 @@ async function updateManifest(): Promise<void> {
     ContentType: 'application/json; charset=utf-8',
   });
   await s3.send(putCmd);
-  console.log(`[crawl-cnblogs] manifest.json 已更新（${posts.length} 篇文章）`);
+  logger.info(`[crawl-cnblogs] manifest.json 已更新（${posts.length} 篇文章）`);
 }
 
 // 主函数（爬取新文章）
 async function main(): Promise<void> {
-  console.log('[crawl-cnblogs] 开始爬取...');
+  logger.info('[crawl-cnblogs] 开始爬取...');
 
   const html = await fetchHtml(CNBLOGS_HOME);
-  console.log(`[crawl-cnblogs] 首页 HTML 长度：${html.length}`);
+  logger.info(`[crawl-cnblogs] 首页 HTML 长度：${html.length}`);
 
   const links = extractArticleLinks(html);
-  console.log(`[crawl-cnblogs] 找到 ${links.length} 篇文章`);
+  logger.info(`[crawl-cnblogs] 找到 ${links.length} 篇文章`);
 
   if (links.length === 0) {
-    console.log('[crawl-cnblogs] 未找到文章');
+    logger.info('[crawl-cnblogs] 未找到文章');
     return;
   }
 
   const existingTitles = await getExistingTitles();
-  console.log(`[crawl-cnblogs] R2 已有 ${existingTitles.size} 篇文章`);
+  logger.info(`[crawl-cnblogs] R2 已有 ${existingTitles.size} 篇文章`);
 
   // 找一篇不重复的文章
   let targetUrl: string | null = null;
@@ -396,15 +392,15 @@ async function main(): Promise<void> {
     const { title } = await fetchArticle(url);
     if (!existingTitles.has(title)) {
       targetUrl = url;
-      console.log(`[crawl-cnblogs] 找到新文章：《${title}》`);
+      logger.info(`[crawl-cnblogs] 找到新文章：《${title}》`);
       break;
     } else {
-      console.log(`[crawl-cnblogs] 跳过（已存在）：《${title}》`);
+      logger.info(`[crawl-cnblogs] 跳过（已存在）：《${title}》`);
     }
   }
 
   if (!targetUrl) {
-    console.log('[crawl-cnblogs] 所有文章都已存在，无需上传');
+    logger.info('[crawl-cnblogs] 所有文章都已存在，无需上传');
     return;
   }
 
@@ -416,26 +412,26 @@ async function main(): Promise<void> {
   let tags: string[] = [];
   if (ZHIPU_API_KEY) {
     try {
-      console.log('[crawl-cnblogs] 🏷️  AI 生成分类标签...');
+      logger.info('[crawl-cnblogs] 🏷️  AI 生成分类标签...');
       const result = await askAIForCategoryAndTags(title, textSnippet);
       category = result.category || '技术';
       tags = result.tags || [];
-      console.log(`[crawl-cnblogs] AI 分类: ${category} | 标签: ${JSON.stringify(tags)}`);
+      logger.info(`[crawl-cnblogs] AI 分类: ${category} | 标签: ${JSON.stringify(tags)}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.error(`[crawl-cnblogs] AI 分类失败，使用默认：${msg}`);
+      logger.error(`[crawl-cnblogs] AI 分类失败，使用默认：${msg}`);
     }
   } else {
-    console.log('[crawl-cnblogs] ⚠️ 未设置 ZHIPU_API_KEY，跳过 AI 分类');
+    logger.info('[crawl-cnblogs] ⚠️ 未设置 ZHIPU_API_KEY，跳过 AI 分类');
   }
 
   // 生成 Markdown 并上传
   const markdown = buildMarkdown(title, publishDate, targetUrl, contentHtml, category, tags);
   const key = await uploadToR2(title, markdown, publishDate);
-  console.log(`[crawl-cnblogs] ✅ 上传成功：${key}`);
+  logger.info(`[crawl-cnblogs] ✅ 上传成功：${key}`);
 
   await updateManifest();
-  console.log('[crawl-cnblogs] ✅ manifest.json 已更新');
+  logger.info('[crawl-cnblogs] ✅ manifest.json 已更新');
 
   writeWorkflowResult({
     success: true,
@@ -448,7 +444,7 @@ async function main(): Promise<void> {
 
 // 批量清理文章的爬取痕迹
 async function cleanArticles(): Promise<void> {
-  console.log('[crawl-cnblogs] 开始清理文章...');
+  logger.info('[crawl-cnblogs] 开始清理文章...');
 
   const listCmd = new ListObjectsV2Command({ Bucket: R2_BUCKET, Prefix: 'blog/', MaxKeys: 1000 });
   const response = await s3.send(listCmd);
@@ -484,14 +480,14 @@ async function cleanArticles(): Promise<void> {
       });
       await s3.send(putCmd);
       cleaned++;
-      console.log(`[crawl-cnblogs] ✅ 已清理：${obj.Key}`);
+      logger.info(`[crawl-cnblogs] ✅ 已清理：${obj.Key}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.error(`[crawl-cnblogs] 清理 ${obj.Key} 失败：${msg}`);
+      logger.error(`[crawl-cnblogs] 清理 ${obj.Key} 失败：${msg}`);
     }
   }
 
-  console.log(`[crawl-cnblogs] 共清理 ${cleaned} 篇文章`);
+  logger.info(`[crawl-cnblogs] 共清理 ${cleaned} 篇文章`);
   await updateManifest();
 }
 
@@ -499,10 +495,10 @@ async function cleanArticles(): Promise<void> {
 if (process.argv.includes('--clean-articles')) {
   void (async () => {
     const startTime = Date.now();
-    console.log('[crawl-cnblogs] --clean-articles 模式：批量清理爬取痕迹');
+    logger.info('[crawl-cnblogs] --clean-articles 模式：批量清理爬取痕迹');
     try {
       await cleanArticles();
-      console.log('[crawl-cnblogs] ✅ 文章清理完成');
+      logger.info('[crawl-cnblogs] ✅ 文章清理完成');
       writeWorkflowResult({
         success: true,
         workflow: 'crawl-cnblogs-clean',
@@ -522,17 +518,17 @@ if (process.argv.includes('--clean-articles')) {
         details: [],
         error: msg,
       });
-      console.error('[crawl-cnblogs] 错误：', msg);
+      logger.error(`[crawl-cnblogs] 错误：${msg}`);
       process.exit(1);
     }
   })();
 } else if (process.argv.includes('--fix-manifest')) {
   void (async () => {
     const startTime = Date.now();
-    console.log('[crawl-cnblogs] --fix-manifest 模式：只修复 manifest.json');
+    logger.info('[crawl-cnblogs] --fix-manifest 模式：只修复 manifest.json');
     try {
       await updateManifest();
-      console.log('[crawl-cnblogs] ✅ manifest.json 已修复');
+      logger.info('[crawl-cnblogs] ✅ manifest.json 已修复');
       writeWorkflowResult({
         success: true,
         workflow: 'crawl-cnblogs-fix-manifest',
@@ -552,7 +548,7 @@ if (process.argv.includes('--clean-articles')) {
         details: [],
         error: msg,
       });
-      console.error('[crawl-cnblogs] 错误：', msg);
+      logger.error(`[crawl-cnblogs] 错误：${msg}`);
       process.exit(1);
     }
   })();
@@ -566,7 +562,7 @@ if (process.argv.includes('--clean-articles')) {
       details: [],
       error: err.message,
     });
-    console.error('[crawl-cnblogs] 错误：', err.message);
+    logger.error(`[crawl-cnblogs] 错误：${err.message}`);
     process.exit(1);
   });
 }

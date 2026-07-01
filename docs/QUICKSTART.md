@@ -78,7 +78,6 @@ npm run cdn-sync             # 同步域名配置
 - [ ] Workers 脚本
 - [ ] GitHub 开启 Secret Scanning 推送告警
 - [ ] 微调 `.github/gitleaks.toml` 误报规则
-- [ ] 清理 `src/scripts/send-email.ts` (死代码，无 workflow 引用)
 
 ## 开发约定
 

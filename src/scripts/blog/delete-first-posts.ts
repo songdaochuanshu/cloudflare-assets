@@ -2,6 +2,7 @@
 // 删除前 N 篇文章（用于清理测试文章）
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { writeWorkflowResult, elapsed } from '../../lib/workflow-result.js';
+import { logger } from '../../lib/logger.js';
 
 const R2_ENDPOINT = `https://${process.env.CF_ACCOUNT_ID ?? ''}.r2.cloudflarestorage.com`;
 const R2_BUCKET = process.env.R2_BLOG_BUCKET ?? 'songdaochuanshu-static';
@@ -28,12 +29,12 @@ async function deletePost(key: string): Promise<void> {
     Key: key,
   });
   await s3.send(command);
-  console.log(`🗑️ 已删除: ${key}`);
+  logger.info(`🗑️ 已删除: ${key}`);
 }
 
 async function main(): Promise<void> {
   const startTime = Date.now();
-  console.log('[delete-first-posts] 开始删除前 3 篇文章...\n');
+  logger.info('[delete-first-posts] 开始删除前 3 篇文章...\n');
 
   const details: Array<Record<string, unknown>> = [];
   let deleted = 0;
@@ -46,13 +47,13 @@ async function main(): Promise<void> {
       deleted++;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`❌ 删除失败 ${key}: ${msg}`);
+      logger.error(`❌ 删除失败 ${key}: ${msg}`);
       details.push({ key, status: '失败', error: msg });
       failed++;
     }
   }
 
-  console.log('\n✅ 删除完成！请运行 crawl-cnblogs --fix-manifest 更新 manifest.json');
+  logger.info('\n✅ 删除完成！请运行 crawl-cnblogs --fix-manifest 更新 manifest.json');
 
   writeWorkflowResult({
     success: failed === 0,
@@ -73,6 +74,6 @@ main().catch((err: Error) => {
     details: [],
     error: err.message,
   });
-  console.error(err);
+  logger.error(err);
   process.exit(1);
 });

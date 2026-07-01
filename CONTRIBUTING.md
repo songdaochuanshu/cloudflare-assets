@@ -44,11 +44,8 @@ cloudflare-assets/
 │   │   ├── cdn/                        # CDN 域名管理
 │   │   │   ├── list-domains.ts
 │   │   │   └── sync-domains.ts
-│   │   ├── email-notifier.ts           # 邮件通知脚本
-│   │   └── send-email.ts               # 邮件发送（旧版）
+│   │   └── email-notifier.ts           # 邮件通知脚本
 │   └── __tests__/                      # 单元测试
-│       ├── r2-client.test.ts
-│       └── anti-slop.test.ts
 ├── dist/                               # TS 编译产物 (git ignore)
 ├── docs/                               # 项目文档
 │   ├── QUICKSTART.md                   # 新会话快速上手

@@ -6,12 +6,7 @@ vi.hoisted(() => {
   process.env.R2_SECRET_KEY = 'sec';
 });
 
-import {
-  AppError,
-  R2Error,
-  ValidationError,
-  ApiError,
-} from '../lib/errors.js';
+import { AppError, R2Error, ValidationError, ApiError } from '../lib/errors.js';
 import { env as importedEnv, loadEnv } from '../lib/config.js';
 
 describe('errors', () => {
@@ -91,7 +86,8 @@ describe('config', () => {
       // 缓存已填充；这里验证 schema 默认值语义（Zod 的 default 在 cache miss 时生效）
       // 不清缓存的情况下，至少保证字段存在或为默认值之一
       expect(
-        importedEnv.R2_HOMEPAGE_BUCKET === before || importedEnv.R2_HOMEPAGE_BUCKET === 'homepage-bg',
+        importedEnv.R2_HOMEPAGE_BUCKET === before ||
+          importedEnv.R2_HOMEPAGE_BUCKET === 'homepage-bg',
       ).toBe(true);
     } finally {
       if (before !== undefined) process.env.R2_HOMEPAGE_BUCKET = before;

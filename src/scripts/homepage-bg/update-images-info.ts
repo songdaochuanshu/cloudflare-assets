@@ -4,27 +4,28 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { bucketName, cdnBase, listAllKeys, uploadToR2 } from '../../lib/r2-client.js';
 import type { ImageEntry, ImagesInfo } from '../../lib/types.js';
 import { writeWorkflowResult, elapsed } from '../../lib/workflow-result.js';
+import { logger } from '../../lib/logger.js';
 
 const customDomain = cdnBase;
 
 async function main(): Promise<void> {
   const startTime = Date.now();
-  console.log('=== R2 图片链接更新工具 ===');
-  console.log('Bucket: ' + bucketName);
-  console.log('');
+  logger.info('=== R2 图片链接更新工具 ===');
+  logger.info('Bucket: ' + bucketName);
+  logger.info('');
 
   // 读取元数据缓存
   let metadataCache: Record<string, Partial<ImageEntry>> = {};
   try {
     metadataCache = JSON.parse(readFileSync('./metadata-cache.json', 'utf8'));
-    console.log('已加载元数据缓存: ' + Object.keys(metadataCache).length + ' 条');
+    logger.info('已加载元数据缓存: ' + Object.keys(metadataCache).length + ' 条');
   } catch {
-    console.log('⚠️  元数据缓存不存在，将使用空元数据');
+    logger.info('⚠️  元数据缓存不存在，将使用空元数据');
   }
 
-  console.log('获取 R2 文件列表...');
+  logger.info('获取 R2 文件列表...');
   const allKeys = await listAllKeys();
-  console.log('R2 中总文件数: ' + allKeys.length);
+  logger.info('R2 中总文件数: ' + allKeys.length);
 
   // 构建 images-info.json（按 r18/normal 分类）
   const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
@@ -74,7 +75,7 @@ async function main(): Promise<void> {
   // 写入 JSON
   const jsonContent = JSON.stringify(imagesInfo, null, 2);
   writeFileSync('images-info.json', jsonContent, 'utf8');
-  console.log(
+  logger.info(
     '已写入 images-info.json (r18: ' +
       r18Images.length +
       ' 条, normal: ' +
@@ -83,23 +84,23 @@ async function main(): Promise<void> {
   );
 
   // 上传 images-info.json 到 R2
-  console.log('\n上传 images-info.json 到 R2...');
+  logger.info('\n上传 images-info.json 到 R2...');
   const ok = await uploadToR2('images-info.json', jsonContent, { contentType: 'application/json' });
   if (ok) {
-    console.log('✅ images-info.json 已上传到 R2');
+    logger.info('✅ images-info.json 已上传到 R2');
   } else {
-    console.log('❌ 上传失败');
+    logger.info('❌ 上传失败');
   }
 
   // 打印前 5 条作为示例
-  console.log('\n前 5 条示例 (r18):');
+  logger.info('\n前 5 条示例 (r18):');
   (imagesInfo.r18 || []).slice(0, 5).forEach((img: ImageEntry) => {
-    console.log(`  PID: ${img.pid}, File: ${img.filename}, URL: ${img.url}`);
+    logger.info(`  PID: ${img.pid}, File: ${img.filename}, URL: ${img.url}`);
   });
 
-  console.log('\n前 5 条示例 (normal):');
+  logger.info('\n前 5 条示例 (normal):');
   (imagesInfo.normal || []).slice(0, 5).forEach((img: ImageEntry) => {
-    console.log(`  PID: ${img.pid}, File: ${img.filename}, URL: ${img.url}`);
+    logger.info(`  PID: ${img.pid}, File: ${img.filename}, URL: ${img.url}`);
   });
 
   writeWorkflowResult({

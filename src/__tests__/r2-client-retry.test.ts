@@ -50,9 +50,7 @@ describe('r2-client × retry 集成', () => {
   });
 
   it('listAllKeys 在 4xx（除 429）不重试', async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(makeResp({ status: 403 }));
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(makeResp({ status: 403 }));
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(listAllKeys()).rejects.toThrow('HTTP 403');
@@ -60,9 +58,7 @@ describe('r2-client × retry 集成', () => {
   });
 
   it('listAllKeys 在 5xx 重试耗尽后抛 R2Error', async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(makeResp({ status: 500 }));
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(makeResp({ status: 500 }));
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(listAllKeys()).rejects.toThrow('HTTP 500');
@@ -83,9 +79,7 @@ describe('r2-client × retry 集成', () => {
   });
 
   it('deleteObject 在 4xx 不重试', async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(makeResp({ status: 404 }));
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(makeResp({ status: 404 }));
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(deleteObject('missing.jpg')).rejects.toThrow('HTTP 404');

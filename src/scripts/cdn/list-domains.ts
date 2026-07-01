@@ -9,6 +9,7 @@ import {
 } from '../../lib/cf-api.js';
 // Type imports kept for documentation// import type { R2CustomDomain, PagesDomain, WorkerRoute, WorkerDomain, Zone } from '../../lib/cf-api.js';
 import { readFileSync } from 'node:fs';
+import { logger } from '../../lib/logger.js';
 
 interface DomainsConfig {
   r2?: Record<string, { domains: string[] }>;
@@ -46,55 +47,55 @@ async function main(): Promise<void> {
   const zones = await listZones();
   const zoneMap = new Map(zones.map((z) => [z.id, z.name]));
 
-  console.log('═══════════════════════════════════════════');
-  console.log('  Cloudflare 自定义域名清单');
-  console.log('═══════════════════════════════════════════\n');
+  logger.info('═══════════════════════════════════════════');
+  logger.info('  Cloudflare 自定义域名清单');
+  logger.info('═══════════════════════════════════════════\n');
 
   // ── R2 ──
   const r2Buckets = Object.keys(config.r2 ?? {});
   if (r2Buckets.length > 0) {
-    console.log('📦 R2 自定义域名\n');
+    logger.info('📦 R2 自定义域名\n');
     for (const bucket of r2Buckets) {
-      console.log(`  桶: ${bucket}`);
+      logger.info(`  桶: ${bucket}`);
       try {
         const domains = await listR2Domains(bucket);
         if (domains.length === 0) {
-          console.log('    (无自定义域名)');
+          logger.info('    (无自定义域名)');
         }
         for (const d of domains) {
           const em = domainStatusEmoji(d.status);
           const sslEm = d.ssl?.status === 'active' ? '🔒' : '⚠️';
-          console.log(
+          logger.info(
             `    ${em} ${d.domain}  ${sslEm} SSL:${d.ssl?.status ?? 'unknown'}  Zone:${zoneMap.get(d.zoneId) ?? d.zoneId}`,
           );
         }
       } catch (e: unknown) {
-        console.log(`    ❌ 查询失败: ${e instanceof Error ? e.message : String(e)}`);
+        logger.info(`    ❌ 查询失败: ${e instanceof Error ? e.message : String(e)}`);
       }
-      console.log('');
+      logger.info('');
     }
   }
 
   // ── Pages ──
   const pagesProjects = Object.keys(config.pages ?? {});
   if (pagesProjects.length > 0) {
-    console.log('📄 Pages 自定义域名\n');
+    logger.info('📄 Pages 自定义域名\n');
     for (const project of pagesProjects) {
-      console.log(`  项目: ${project}`);
+      logger.info(`  项目: ${project}`);
       try {
         const domains = await listPagesDomains(project);
         if (domains.length === 0) {
-          console.log('    (无自定义域名)');
+          logger.info('    (无自定义域名)');
         }
         for (const d of domains) {
           const em = domainStatusEmoji(d.status);
           const sslEm = d.ssl?.status === 'active' ? '🔒' : '⚠️';
-          console.log(`    ${em} ${d.name}  ${sslEm} SSL:${d.ssl?.status ?? 'unknown'}`);
+          logger.info(`    ${em} ${d.name}  ${sslEm} SSL:${d.ssl?.status ?? 'unknown'}`);
         }
       } catch (e: unknown) {
-        console.log(`    ❌ 查询失败: ${e instanceof Error ? e.message : String(e)}`);
+        logger.info(`    ❌ 查询失败: ${e instanceof Error ? e.message : String(e)}`);
       }
-      console.log('');
+      logger.info('');
     }
   }
 
@@ -103,54 +104,54 @@ async function main(): Promise<void> {
   const hasWorkerDomains = Object.keys(config.workers?.domains ?? {}).length > 0;
 
   if (hasRoutes || hasWorkerDomains) {
-    console.log('⚡ Workers\n');
+    logger.info('⚡ Workers\n');
 
     if (hasRoutes) {
-      console.log('  路由:');
+      logger.info('  路由:');
       try {
         const routes = await listWorkerRoutes();
         if (routes.length === 0) {
-          console.log('    (无路由)');
+          logger.info('    (无路由)');
         }
         for (const r of routes) {
-          console.log(`    ${r.pattern}  →  ${r.script}`);
+          logger.info(`    ${r.pattern}  →  ${r.script}`);
         }
       } catch (e: unknown) {
-        console.log(`    ❌ 查询失败: ${e instanceof Error ? e.message : String(e)}`);
+        logger.info(`    ❌ 查询失败: ${e instanceof Error ? e.message : String(e)}`);
       }
-      console.log('');
+      logger.info('');
     }
 
     if (hasWorkerDomains) {
-      console.log('  自定义域名:');
+      logger.info('  自定义域名:');
       try {
         const domains = await listWorkerDomains();
         if (domains.length === 0) {
-          console.log('    (无自定义域名)');
+          logger.info('    (无自定义域名)');
         }
         for (const d of domains) {
           const em = domainStatusEmoji(d.status);
           const zone = zoneMap.get(d.zone_id) ?? d.zone_id;
-          console.log(`    ${em} ${d.hostname}  →  ${d.service}  Zone:${zone}`);
+          logger.info(`    ${em} ${d.hostname}  →  ${d.service}  Zone:${zone}`);
         }
       } catch (e: unknown) {
-        console.log(`    ❌ 查询失败: ${e instanceof Error ? e.message : String(e)}`);
+        logger.info(`    ❌ 查询失败: ${e instanceof Error ? e.message : String(e)}`);
       }
-      console.log('');
+      logger.info('');
     }
   }
 
   // ── Zones ──
-  console.log('🌐 可用 Zones\n');
+  logger.info('🌐 可用 Zones\n');
   for (const z of zones) {
-    console.log(`  ${z.name}  (${z.id.slice(0, 8)}…)  ${z.status}`);
+    logger.info(`  ${z.name}  (${z.id.slice(0, 8)}…)  ${z.status}`);
   }
-  console.log('');
+  logger.info('');
 
-  console.log('═══════════════════════════════════════════');
+  logger.info('═══════════════════════════════════════════');
 }
 
 main().catch((err: Error) => {
-  console.error('❌ 错误:', err.message);
+  logger.error(`❌ 错误:${err.message}`);
   process.exit(1);
 });

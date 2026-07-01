@@ -2,6 +2,7 @@
 // 删除所有文章
 import { S3Client, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { writeWorkflowResult, elapsed } from '../../lib/workflow-result.js';
+import { logger } from '../../lib/logger.js';
 
 const R2_ENDPOINT = `https://${process.env.CF_ACCOUNT_ID ?? ''}.r2.cloudflarestorage.com`;
 const R2_BUCKET = process.env.R2_BLOG_BUCKET ?? 'songdaochuanshu-static';
@@ -17,7 +18,7 @@ const s3 = new S3Client({
 
 async function deleteAllPosts(): Promise<void> {
   const startTime = Date.now();
-  console.log('[delete-all-posts] 开始删除所有文章...\n');
+  logger.info('[delete-all-posts] 开始删除所有文章...\n');
 
   // 列出所有 blog/ 开头的文件
   const listCommand = new ListObjectsV2Command({
@@ -27,7 +28,7 @@ async function deleteAllPosts(): Promise<void> {
   const listResult = await s3.send(listCommand);
 
   if (!listResult.Contents || listResult.Contents.length === 0) {
-    console.log('没有找到任何文章');
+    logger.info('没有找到任何文章');
     writeWorkflowResult({
       success: true,
       workflow: 'delete-all-posts',
@@ -40,7 +41,7 @@ async function deleteAllPosts(): Promise<void> {
   }
 
   const total = listResult.Contents.length;
-  console.log(`找到 ${total} 篇文章:\n`);
+  logger.info(`找到 ${total} 篇文章:\n`);
 
   const details: Array<Record<string, unknown>> = [];
   for (const obj of listResult.Contents) {
@@ -52,10 +53,10 @@ async function deleteAllPosts(): Promise<void> {
     });
     await s3.send(deleteCommand);
     details.push({ key, status: '已删除' });
-    console.log(`🗑️ 已删除: ${key}`);
+    logger.info(`🗑️ 已删除: ${key}`);
   }
 
-  console.log('\n✅ 删除完成！');
+  logger.info('\n✅ 删除完成！');
 
   writeWorkflowResult({
     success: true,
@@ -76,6 +77,6 @@ deleteAllPosts().catch((err: Error) => {
     details: [],
     error: err.message,
   });
-  console.error(err);
+  logger.error(err);
   process.exit(1);
 });

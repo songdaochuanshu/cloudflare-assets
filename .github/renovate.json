@@ -1,41 +1,30 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:best-practices"],
-  "description": "Auto-update dependencies for cloudflare-assets",
-  "schedule": ["every weekend"],
-  "pinDependencies": false,
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    "group:allNonMajor"
+  ],
   "labels": ["dependencies"],
-  "prConcurrentLimit": 3,
-  "prHourlyLimit": 2,
-  "automerge": true,
-  "automergeType": "pr",
-  "separateMajorMinor": true,
-  "separateMinorPatch": true,
   "packageRules": [
     {
-      "groupName": "linting-tools",
-      "matchPackagePatterns": ["^eslint", "^prettier", "^@typescript-eslint", "^@commitlint"],
-      "schedule": ["every Monday"]
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true,
+      "automergeType": "pr"
     },
     {
-      "groupName": "testing-tools",
-      "matchPackagePatterns": ["^vitest", "^@vitest", "^@types/"],
-      "schedule": ["every Monday"]
+      "matchPackagePatterns": ["^@types/"],
+      "groupName": "type definitions",
+      "automerge": true
     },
     {
-      "matchPackagePatterns": ["^pino", "^pino-pretty"],
-      "automerge": false,
-      "labels": ["security"]
-    },
-    {
-      "matchUpdateTypes": ["major"],
-      "automerge": false,
-      "labels": ["breaking"]
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "automerge": true
     }
   ],
-  "vulnerabilityAlerts": {
-    "labels": ["security"],
-    "automerge": false,
-    "assignees": ["@songdaochuanshu"]
-  }
+  "schedule": ["before 6am on monday"],
+  "timezone": "Asia/Shanghai",
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2
 }

@@ -7,7 +7,12 @@ export interface FetchRetryOptions {
   idempotent?: boolean;
   retryOnStatus?: (_status: number) => boolean;
   retryOnError?: (_err: unknown) => boolean;
-  onRetry?: (_info: { attempt: number; maxAttempts: number; delayMs: number; reason: string }) => void;
+  onRetry?: (_info: {
+    attempt: number;
+    maxAttempts: number;
+    delayMs: number;
+    reason: string;
+  }) => void;
 }
 
 export function sleep(ms: number): Promise<void> {
@@ -43,7 +48,12 @@ function defaultRetryOnError(err: unknown): boolean {
   return err instanceof TypeError;
 }
 
-function computeDelayMs(attempt: number, baseDelayMs: number, maxDelayMs: number, jitterRatio: number): number {
+function computeDelayMs(
+  attempt: number,
+  baseDelayMs: number,
+  maxDelayMs: number,
+  jitterRatio: number,
+): number {
   const exp = Math.min(maxDelayMs, baseDelayMs * Math.pow(2, attempt - 1));
   const jitter = exp * jitterRatio;
   const randomized = exp + (Math.random() * 2 - 1) * jitter;
@@ -79,7 +89,9 @@ export async function fetchWithRetry(
   let lastError: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const controller = new AbortController();
-    const signal = init.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal;
+    const signal = init.signal
+      ? AbortSignal.any([init.signal, controller.signal])
+      : controller.signal;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     if (timeoutMs > 0) timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -105,7 +117,12 @@ export async function fetchWithRetry(
       }
 
       const delayMs = computeDelayMs(attempt, baseDelayMs, maxDelayMs, jitterRatio);
-      onRetry?.({ attempt, maxAttempts, delayMs, reason: err instanceof Error ? err.message : 'fetch error' });
+      onRetry?.({
+        attempt,
+        maxAttempts,
+        delayMs,
+        reason: err instanceof Error ? err.message : 'fetch error',
+      });
       await sleep(delayMs);
     }
   }

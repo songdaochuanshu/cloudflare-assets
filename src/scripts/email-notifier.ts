@@ -1,6 +1,7 @@
 // email-notifier.ts
 // 通用邮件通知组件 — v2 现代风格模板
 import { readFileSync } from 'node:fs';
+import { logger } from '../lib/logger.js';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const NOTIFY_EMAIL = process.env.NOTIFY_EMAIL;
@@ -9,7 +10,7 @@ const WORKFLOW_NAME = process.env.WORKFLOW_NAME || 'Unknown';
 const WORKFLOW_STATUS = process.env.WORKFLOW_STATUS || 'unknown';
 
 if (!RESEND_API_KEY || !NOTIFY_EMAIL) {
-  console.error('❌ 缺少环境变量: RESEND_API_KEY 或 NOTIFY_EMAIL');
+  logger.error('❌ 缺少环境变量: RESEND_API_KEY 或 NOTIFY_EMAIL');
   process.exit(1);
 }
 
@@ -256,10 +257,10 @@ async function sendNotification(): Promise<void> {
   const ts = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
   const subject = `${result.success !== false ? '✅' : '❌'} ${WORKFLOW_NAMES[result.workflow || WORKFLOW_NAME] || WORKFLOW_NAME} · ${ts}`;
 
-  console.log('📧 发送邮件到:', NOTIFY_EMAIL);
-  console.log('   主题:', subject);
-  console.log('   工作流:', result.workflow || WORKFLOW_NAME);
-  console.log('   状态:', result.success !== false ? '成功' : '失败');
+  logger.info(`📧 发送邮件到:${NOTIFY_EMAIL}`);
+  logger.info(`   主题:${subject}`);
+  logger.info(`   工作流:${result.workflow || WORKFLOW_NAME}`);
+  logger.info(`   状态:${result.success !== false ? '成功' : '失败'}`);
 
   const resp = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -277,15 +278,15 @@ async function sendNotification(): Promise<void> {
 
   if (!resp.ok) {
     const errText = await resp.text();
-    console.error('❌ 邮件发送失败:', resp.status, errText);
+    logger.error(`❌ 邮件发送失败:${(resp.status, errText)}`);
     process.exit(1);
   }
 
   const data: any = await resp.json();
-  console.log('✅ 邮件发送成功! ID:', data.id);
+  logger.info(`✅ 邮件发送成功! ID:${data.id}`);
 }
 
 sendNotification().catch((err) => {
-  console.error('❌ 发送邮件时出错:', err);
+  logger.error(`❌ 发送邮件时出错:${err}`);
   process.exit(1);
 });

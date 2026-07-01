@@ -32,11 +32,8 @@ cloudflare-assets/
 │   │   │   ├── delete-all-posts.ts
 │   │   │   ├── delete-first-posts.ts
 │   │   │   └── delete-old-posts.ts
-│   │   ├── email-notifier.ts            # 邮件通知脚本
-│   │   └── send-email.ts                # 邮件发送（旧版，待合并）
-│   └── __tests__/                       # 单元测试
-│       ├── r2-client.test.ts
-│       └── anti-slop.test.ts
+│   │   └── email-notifier.ts            # 邮件通知脚本
+│   └── __tests__/                       # 单元测试（9 个文件，67 用例）
 ├── dist/                                # tsc 编译产物（git ignore）
 ├── docs/                                # 文档
 └── .github/workflows/                   # CI/CD（全部跑 dist/ 产物）

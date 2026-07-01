@@ -38,14 +38,16 @@ describe('cf-api × retry 集成', () => {
   });
 
   it('listR2Domains 在 4xx 不重试（云控错信息不抛吞）', async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(
-        makeResp({
-          status: 403,
-          body: JSON.stringify({ success: false, errors: [{ code: 1, message: 'forbidden' }], result: null }),
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      makeResp({
+        status: 403,
+        body: JSON.stringify({
+          success: false,
+          errors: [{ code: 1, message: 'forbidden' }],
+          result: null,
         }),
-      );
+      }),
+    );
     vi.stubGlobal('fetch', fetchMock);
     await expect(listR2Domains('b')).rejects.toThrow(/HTTP 403/);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -69,7 +71,10 @@ describe('cf-api × retry 集成', () => {
       .fn<typeof fetch>()
       .mockResolvedValueOnce(makeResp({ status: 429, body: 'throttle' }))
       .mockResolvedValueOnce(
-        makeResp({ status: 200, body: JSON.stringify({ success: true, errors: [], result: null }) }),
+        makeResp({
+          status: 200,
+          body: JSON.stringify({ success: true, errors: [], result: null }),
+        }),
       );
     vi.stubGlobal('fetch', fetchMock);
     await removeR2Domain('b', 'd.example.com');
@@ -82,7 +87,11 @@ describe('cf-api × retry 集成', () => {
       vi.fn<typeof fetch>(async () =>
         makeResp({
           status: 200,
-          body: JSON.stringify({ success: true, errors: [], result: [{ id: 'z1', name: 'x.cloud', status: 'active' }] }),
+          body: JSON.stringify({
+            success: true,
+            errors: [],
+            result: [{ id: 'z1', name: 'x.cloud', status: 'active' }],
+          }),
         }),
       ),
     );

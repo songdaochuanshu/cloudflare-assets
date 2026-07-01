@@ -1,5 +1,5 @@
 // email-template.ts
-// 共享的邮件 HTML 模板，send-email.ts 与 email-notifier.ts 复用
+// 共享的邮件 HTML 模板，email-notifier.ts 使用
 // 抽出 buildEmailHTML 让它可被单测
 
 export interface CrawlSummary {

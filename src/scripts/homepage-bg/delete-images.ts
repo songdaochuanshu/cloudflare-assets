@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { deleteObject } from '../../lib/r2-client.js';
 import { writeWorkflowResult, elapsed } from '../../lib/workflow-result.js';
+import { logger } from '../../lib/logger.js';
 
 const R2_PREFIX = 'r18/';
 
@@ -11,7 +12,7 @@ async function main(): Promise<void> {
   const files = readFileSync('files_to_delete.txt', 'utf8')
     .split('\n')
     .filter((f: string) => f.trim());
-  console.log('要删除 ' + files.length + ' 个文件');
+  logger.info('要删除 ' + files.length + ' 个文件');
   let success = 0;
   let failed = 0;
   const details: Array<Record<string, unknown>> = [];
@@ -23,26 +24,26 @@ async function main(): Promise<void> {
     try {
       const ok = await deleteObject(key);
       if (ok) {
-        console.log('OK');
+        logger.info('OK');
         details.push({ filename, key, status: '已删除' });
         success++;
       } else {
-        console.log('FAILED');
+        logger.info('FAILED');
         details.push({ filename, key, status: '失败' });
         failed++;
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.log('ERROR: ' + msg);
+      logger.info('ERROR: ' + msg);
       details.push({ filename, key, status: '错误', error: msg });
       failed++;
     }
     await new Promise<void>((r) => setTimeout(r, 100));
   }
 
-  console.log('\n========== 结果 ==========');
-  console.log('成功: ' + success);
-  console.log('失败: ' + failed);
+  logger.info('\n========== 结果 ==========');
+  logger.info('成功: ' + success);
+  logger.info('失败: ' + failed);
 
   writeWorkflowResult({
     success: failed === 0,

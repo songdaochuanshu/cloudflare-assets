@@ -7,6 +7,7 @@ import {
   PutObjectCommand,
 } from '@aws-sdk/client-s3';
 import { writeWorkflowResult, elapsed } from '../../lib/workflow-result.js';
+import { logger } from '../../lib/logger.js';
 
 const R2_ENDPOINT = `https://${process.env.CF_ACCOUNT_ID ?? ''}.r2.cloudflarestorage.com`;
 const BUCKET = process.env.R2_BLOG_BUCKET ?? 'songdaochuanshu-static';
@@ -22,7 +23,7 @@ const s3 = new S3Client({
 
 async function main(): Promise<void> {
   const startTime = Date.now();
-  console.log('[cleanup-blog] 开始清空 blog/ 前缀的文件...');
+  logger.info('[cleanup-blog] 开始清空 blog/ 前缀的文件...');
 
   let deleted = 0;
 
@@ -35,9 +36,9 @@ async function main(): Promise<void> {
   const { Contents } = await s3.send(listCommand);
 
   if (!Contents || Contents.length === 0) {
-    console.log('[cleanup-blog] 没有找到文件，无需删除');
+    logger.info('[cleanup-blog] 没有找到文件，无需删除');
   } else {
-    console.log(`[cleanup-blog] 找到 ${Contents.length} 个文件，开始删除...`);
+    logger.info(`[cleanup-blog] 找到 ${Contents.length} 个文件，开始删除...`);
 
     // 2. 逐个删除
     for (const obj of Contents) {
@@ -49,14 +50,14 @@ async function main(): Promise<void> {
 
       await s3.send(deleteCommand);
       deleted++;
-      console.log(`[cleanup-blog] 已删除 (${deleted}/${Contents.length}): ${obj.Key}`);
+      logger.info(`[cleanup-blog] 已删除 (${deleted}/${Contents.length}): ${obj.Key}`);
     }
 
-    console.log(`[cleanup-blog] ✅ 共删除 ${deleted} 个文件`);
+    logger.info(`[cleanup-blog] ✅ 共删除 ${deleted} 个文件`);
   }
 
   // 3. 清空 manifest.json
-  console.log('[cleanup-blog] 更新 manifest.json（清空 posts 列表）...');
+  logger.info('[cleanup-blog] 更新 manifest.json（清空 posts 列表）...');
   const emptyManifest = JSON.stringify({ posts: [] }, null, 2);
 
   const putCommand = new PutObjectCommand({
@@ -67,7 +68,7 @@ async function main(): Promise<void> {
   });
 
   await s3.send(putCommand);
-  console.log('[cleanup-blog] ✅ manifest.json 已清空');
+  logger.info('[cleanup-blog] ✅ manifest.json 已清空');
 
   writeWorkflowResult({
     success: true,
@@ -88,6 +89,6 @@ main().catch((err: Error) => {
     details: [],
     error: err.message,
   });
-  console.error('[cleanup-blog] 错误：', err.message);
+  logger.error(`[cleanup-blog] 错误：${err.message}`);
   process.exit(1);
 });

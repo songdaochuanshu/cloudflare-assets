@@ -2,6 +2,7 @@
 // 删除旧文章，只保留最新的一篇
 import { S3Client, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { writeWorkflowResult, elapsed } from '../../lib/workflow-result.js';
+import { logger } from '../../lib/logger.js';
 
 const R2_ENDPOINT = `https://${process.env.CF_ACCOUNT_ID ?? ''}.r2.cloudflarestorage.com`;
 const R2_BUCKET = process.env.R2_BLOG_BUCKET ?? 'songdaochuanshu-static';
@@ -30,12 +31,12 @@ async function deleteOldPosts(): Promise<void> {
 
   const toDelete = (listRes.Contents ?? []).filter((obj) => obj.Key !== KEEP);
 
-  console.log(`[delete] 找到 ${toDelete.length} 篇旧文章待删除`);
+  logger.info(`[delete] 找到 ${toDelete.length} 篇旧文章待删除`);
 
   const details: Array<Record<string, unknown>> = [];
   for (const obj of toDelete) {
     if (!obj.Key) continue;
-    console.log(`[delete] 删除: ${obj.Key}`);
+    logger.info(`[delete] 删除: ${obj.Key}`);
     await s3.send(
       new DeleteObjectCommand({
         Bucket: R2_BUCKET,
@@ -43,10 +44,10 @@ async function deleteOldPosts(): Promise<void> {
       }),
     );
     details.push({ key: obj.Key, status: '已删除' });
-    console.log(`[delete] ✅ 已删除: ${obj.Key}`);
+    logger.info(`[delete] ✅ 已删除: ${obj.Key}`);
   }
 
-  console.log('[delete] ✅ 清理完成，保留: ' + KEEP);
+  logger.info('[delete] ✅ 清理完成，保留: ' + KEEP);
 
   writeWorkflowResult({
     success: true,
@@ -67,6 +68,6 @@ deleteOldPosts().catch((err: Error) => {
     details: [],
     error: err.message,
   });
-  console.error('[delete] 错误:', err.message);
+  logger.error(`[delete] 错误:${err.message}`);
   process.exit(1);
 });

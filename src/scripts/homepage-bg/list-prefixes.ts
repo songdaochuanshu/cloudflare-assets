@@ -1,6 +1,7 @@
 // list-prefixes.ts
 // 列出 R2 桶中所有前缀
 import { host, emptyPayloadHash, signRequest } from '../../lib/r2-client.js';
+import { logger } from '../../lib/logger.js';
 
 async function main(): Promise<void> {
   const { authorization, amzDate } = signRequest(
@@ -26,11 +27,11 @@ async function main(): Promise<void> {
   // Extract root-level keys
   const keys: string[] = [...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map((m) => m[1] ?? '');
 
-  console.log('=== 文件夹（前缀）===');
-  folders.forEach((f) => console.log('  ' + f));
-  console.log('\n=== 根目录文件 ===');
-  keys.forEach((k) => console.log('  ' + k));
-  console.log('\n文件夹数: ' + folders.length + ', 根目录文件数: ' + keys.length);
+  logger.info('=== 文件夹（前缀）===');
+  folders.forEach((f) => logger.info('  ' + f));
+  logger.info('\n=== 根目录文件 ===');
+  keys.forEach((k) => logger.info('  ' + k));
+  logger.info('\n文件夹数: ' + folders.length + ', 根目录文件数: ' + keys.length);
 }
 
 void main();

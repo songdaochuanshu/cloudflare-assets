@@ -17,11 +17,31 @@ runs:
       with:
         node-version: ${{ inputs.node-version }}
         cache: npm
+
+    - name: Cache node_modules
+      uses: actions/cache@v4
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-node-${{ inputs.node-version }}-nm-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node-${{ inputs.node-version }}-nm-
+
     - run: npm ci
       shell: bash
+
+    - name: Cache dist
+      if: ${{ inputs.run-build == 'true' }}
+      uses: actions/cache@v4
+      with:
+        path: dist
+        key: ${{ runner.os }}-dist-${{ hashFiles('**/package-lock.json', 'tsconfig.build.json') }}
+        restore-keys: |
+          ${{ runner.os }}-dist-
+
     - if: ${{ inputs.run-typecheck == 'true' }}
       run: npm run typecheck
       shell: bash
+
     - if: ${{ inputs.run-build == 'true' }}
       run: npm run build
       shell: bash

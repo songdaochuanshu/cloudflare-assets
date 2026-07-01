@@ -3,14 +3,15 @@
 import { readFileSync } from 'node:fs';
 import { bucketName, listAllKeys, deleteObject } from '../../lib/r2-client.js';
 import { writeWorkflowResult, elapsed } from '../../lib/workflow-result.js';
+import { logger } from '../../lib/logger.js';
 
 const R2_PREFIX = 'r18/';
 
 async function main(): Promise<void> {
   const startTime = Date.now();
-  console.log('=== 非 Lolicon 图片删除工具 ===');
-  console.log('Bucket: ' + bucketName);
-  console.log('');
+  logger.info('=== 非 Lolicon 图片删除工具 ===');
+  logger.info('Bucket: ' + bucketName);
+  logger.info('');
 
   // 读取 PID 列表（每行一个 PID）
   const pidText = readFileSync('delete-pids.txt', 'utf8');
@@ -20,11 +21,11 @@ async function main(): Promise<void> {
       .map((line: string) => line.trim())
       .filter((line: string) => line.length > 0),
   );
-  console.log('要删除的图片 PID 数量: ' + deletePids.size);
+  logger.info('要删除的图片 PID 数量: ' + deletePids.size);
 
-  console.log('\n获取 R2 文件列表...');
+  logger.info('\n获取 R2 文件列表...');
   const allKeys = await listAllKeys();
-  console.log('R2 中总文件数: ' + allKeys.length);
+  logger.info('R2 中总文件数: ' + allKeys.length);
 
   const toDelete = allKeys.filter((key: string) => {
     if (!key.startsWith(R2_PREFIX)) return false;
@@ -32,10 +33,10 @@ async function main(): Promise<void> {
     const pid = filename.replace(/\.[^.]+$/, '');
     return deletePids.has(pid);
   });
-  console.log('匹配到需要删除的文件: ' + toDelete.length + ' 个');
+  logger.info('匹配到需要删除的文件: ' + toDelete.length + ' 个');
 
   if (toDelete.length === 0) {
-    console.log('没有需要删除的文件');
+    logger.info('没有需要删除的文件');
     writeWorkflowResult({
       success: true,
       workflow: 'delete-non-lolicon',
@@ -47,11 +48,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log('\n前 10 个文件:');
-  toDelete.slice(0, 10).forEach((key: string) => console.log('  ' + key));
-  if (toDelete.length > 10) console.log('  ... 还有 ' + (toDelete.length - 10) + ' 个');
+  logger.info('\n前 10 个文件:');
+  toDelete.slice(0, 10).forEach((key: string) => logger.info('  ' + key));
+  if (toDelete.length > 10) logger.info('  ... 还有 ' + (toDelete.length - 10) + ' 个');
 
-  console.log('\n开始删除...');
+  logger.info('\n开始删除...');
   let deleted = 0;
   let failed = 0;
   const details: Array<Record<string, unknown>> = [];
@@ -60,21 +61,21 @@ async function main(): Promise<void> {
     process.stdout.write('删除 ' + key + '... ');
     const ok = await deleteObject(key);
     if (ok) {
-      console.log('OK');
+      logger.info('OK');
       details.push({ key, status: '已删除' });
       deleted++;
     } else {
-      console.log('FAILED');
+      logger.info('FAILED');
       details.push({ key, status: '失败' });
       failed++;
     }
     await new Promise<void>((r) => setTimeout(r, 100));
   }
 
-  console.log('\n========== 完成 ==========');
-  console.log('成功删除: ' + deleted + ' 个');
-  console.log('删除失败: ' + failed + ' 个');
-  console.log('R2 剩余文件: ' + (allKeys.length - deleted) + ' 个');
+  logger.info('\n========== 完成 ==========');
+  logger.info('成功删除: ' + deleted + ' 个');
+  logger.info('删除失败: ' + failed + ' 个');
+  logger.info('R2 剩余文件: ' + (allKeys.length - deleted) + ' 个');
 
   writeWorkflowResult({
     success: failed === 0,

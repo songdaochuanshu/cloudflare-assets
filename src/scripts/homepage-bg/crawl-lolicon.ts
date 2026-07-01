@@ -5,6 +5,7 @@
 import { writeFileSync, readFileSync } from 'node:fs';
 import { bucketName, listAllKeys, uploadToR2 } from '../../lib/r2-client.js';
 import type { LoliconResponse, LoliconImage, WorkflowResult } from '../../lib/types.js';
+import { logger } from '../../lib/logger.js';
 
 interface PendingItem {
   r2Key: string;
@@ -63,31 +64,31 @@ function randomDelay(): number {
 }
 
 async function main(): Promise<void> {
-  console.log('=== Lolicon 爬虫启动 ===');
-  console.log('运行时长: 5 分钟');
-  console.log('下载间隔: 15-20 秒随机');
-  console.log('模式: R18 (r18/) + Normal (normal/) 交替');
-  console.log('目标桶: ' + bucketName);
-  console.log('');
+  logger.info('=== Lolicon 爬虫启动 ===');
+  logger.info('运行时长: 5 分钟');
+  logger.info('下载间隔: 15-20 秒随机');
+  logger.info('模式: R18 (r18/) + Normal (normal/) 交替');
+  logger.info('目标桶: ' + bucketName);
+  logger.info('');
 
   // 读取现有元数据缓存
   const metadataCachePath = './metadata-cache.json';
   let metadataCache: Record<string, unknown> = {};
   try {
     metadataCache = JSON.parse(readFileSync(metadataCachePath, 'utf8'));
-    console.log('已加载元数据缓存: ' + Object.keys(metadataCache).length + ' 条');
+    logger.info('已加载元数据缓存: ' + Object.keys(metadataCache).length + ' 条');
   } catch {
-    console.log('元数据缓存不存在，将创建新缓存');
+    logger.info('元数据缓存不存在，将创建新缓存');
   }
 
   // 获取 R2 已有文件
-  console.log('获取 R2 文件列表...');
+  logger.info('获取 R2 文件列表...');
   const allKeys = await listAllKeys();
   const existingKeys = new Set<string>(allKeys);
-  console.log('R2 中已有 ' + existingKeys.size + ' 个文件');
+  logger.info('R2 中已有 ' + existingKeys.size + ' 个文件');
 
   // 开始下载
-  console.log('\n开始下载...');
+  logger.info('\n开始下载...');
   const startTime = Date.now();
   const pending: PendingItem[] = []; // 暂存下载的图片，最后统一上传
   let skipped = 0;
@@ -102,7 +103,7 @@ async function main(): Promise<void> {
     try {
       const imageInfo = await fetchRandomImage(mode.r18);
       if (!imageInfo) {
-        console.log('  [' + mode.label + '] 获取图片信息失败，跳过');
+        logger.info('  [' + mode.label + '] 获取图片信息失败，跳过');
         failed++;
         await new Promise<void>((r) => setTimeout(r, randomDelay()));
         continue;
@@ -114,14 +115,14 @@ async function main(): Promise<void> {
       const r2Key = mode.prefix + filename;
 
       if (existingKeys.has(r2Key)) {
-        console.log('  [' + mode.label + '] ' + filename + ' 已存在，跳过');
+        logger.info('  [' + mode.label + '] ' + filename + ' 已存在，跳过');
         skipped++;
         await new Promise<void>((r) => setTimeout(r, randomDelay()));
         continue;
       }
 
-      console.log('  [' + mode.label + '] 下载 ' + filename + '...');
-      console.log(
+      logger.info('  [' + mode.label + '] 下载 ' + filename + '...');
+      logger.info(
         '    标题: ' +
           (imageInfo.title || '(无标题)') +
           ' (by ' +
@@ -131,7 +132,7 @@ async function main(): Promise<void> {
       const imgUrl = imageInfo.urls.original;
       const imgData = await downloadImage(imgUrl);
       if (!imgData) {
-        console.log('  [' + mode.label + '] 下载失败');
+        logger.info('  [' + mode.label + '] 下载失败');
         failed++;
         await new Promise<void>((r) => setTimeout(r, randomDelay()));
         continue;
@@ -153,7 +154,7 @@ async function main(): Promise<void> {
         uploadDate: imageInfo.uploadDate || 0,
       };
       pending.push({ r2Key, filename, imgData, contentType, label: mode.label, metadata });
-      console.log(
+      logger.info(
         '  [' +
           mode.label +
           '] 已下载 ' +
@@ -162,18 +163,18 @@ async function main(): Promise<void> {
           Math.round(imgData.length / 1024) +
           'KB)，等待批量上传',
       );
-      console.log(
+      logger.info(
         '    元数据: ' + metadata.title + ' (' + metadata.width + 'x' + metadata.height + ')',
       );
       existingKeys.add(r2Key);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.log('  错误: ' + msg);
+      logger.info('  错误: ' + msg);
       failed++;
     }
 
     const delay = randomDelay();
-    console.log('  等待 ' + Math.round(delay / 1000) + ' 秒...');
+    logger.info('  等待 ' + Math.round(delay / 1000) + ' 秒...');
     await new Promise<void>((r) => setTimeout(r, delay));
   }
 
@@ -182,15 +183,15 @@ async function main(): Promise<void> {
   let uploadFailed = 0;
 
   if (pending.length > 0) {
-    console.log('\n========== 开始批量上传 ==========');
-    console.log('待上传: ' + pending.length + ' 张');
-    console.log('');
+    logger.info('\n========== 开始批量上传 ==========');
+    logger.info('待上传: ' + pending.length + ' 张');
+    logger.info('');
 
     for (const item of pending) {
       process.stdout.write('  上传 ' + item.r2Key + '... ');
       const ok = await uploadToR2(item.r2Key, item.imgData, { contentType: item.contentType });
       if (ok) {
-        console.log('OK');
+        logger.info('OK');
         uploaded[item.label === 'R18' ? 'r18' : 'normal']++;
 
         // 保存元数据到缓存
@@ -199,7 +200,7 @@ async function main(): Promise<void> {
             item.metadata;
         }
       } else {
-        console.log('FAILED');
+        logger.info('FAILED');
         uploadFailed++;
       }
       await new Promise<void>((r) => setTimeout(r, 100));
@@ -209,7 +210,7 @@ async function main(): Promise<void> {
   // 保存元数据缓存到文件
   if (Object.keys(metadataCache).length > 0) {
     writeFileSync(metadataCachePath, JSON.stringify(metadataCache, null, 2), 'utf8');
-    console.log('\n✅ 元数据缓存已保存: ' + metadataCachePath);
+    logger.info('\n✅ 元数据缓存已保存: ' + metadataCachePath);
   }
 
   // 生成工作流结果（标准格式）
@@ -250,16 +251,16 @@ async function main(): Promise<void> {
   // 写入结果文件（供通用邮件通知组件读取）
   writeFileSync('crawl-summary.json', JSON.stringify(summary, null, 2), 'utf8');
   writeFileSync('workflow-result.json', JSON.stringify(workflowResult, null, 2), 'utf8');
-  console.log('\n✅ 爬取结果已保存:');
-  console.log('   - crawl-summary.json（向后兼容）');
-  console.log('   - workflow-result.json（标准格式，供邮件通知组件读取）');
+  logger.info('\n✅ 爬取结果已保存:');
+  logger.info('   - crawl-summary.json（向后兼容）');
+  logger.info('   - workflow-result.json（标准格式，供邮件通知组件读取）');
 
-  console.log('\n========== 爬取完成 ==========');
-  console.log('下载: R18 ' + uploaded.r18 + ' 张, Normal ' + uploaded.normal + ' 张');
-  console.log('跳过(已存在): ' + skipped + ' 张');
-  console.log('下载失败: ' + failed + ' 张');
-  console.log('上传失败: ' + uploadFailed + ' 张');
-  console.log('\n详细结果已保存到 crawl-summary.json');
+  logger.info('\n========== 爬取完成 ==========');
+  logger.info('下载: R18 ' + uploaded.r18 + ' 张, Normal ' + uploaded.normal + ' 张');
+  logger.info('跳过(已存在): ' + skipped + ' 张');
+  logger.info('下载失败: ' + failed + ' 张');
+  logger.info('上传失败: ' + uploadFailed + ' 张');
+  logger.info('\n详细结果已保存到 crawl-summary.json');
 }
 
 void main();

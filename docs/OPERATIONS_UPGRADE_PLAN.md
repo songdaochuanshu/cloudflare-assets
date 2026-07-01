@@ -3,7 +3,7 @@
 > 配合 [CODE_QUALITY_UPGRADE_PLAN.md](./CODE_QUALITY_UPGRADE_PLAN.md) 一起读
 > 那个解决"代码好不好"，这个解决"跑得稳不稳、改得快不快"
 > 创建时间：2026-07-01
-> 状态：**Phase 1 ✅ / Phase 2 ✅ / Phase 3 ⏳**
+> 状态：**Phase 1 ✅ / Phase 2 ✅ / Phase 3 ✅**
 
 ---
 
@@ -71,7 +71,7 @@
 - 抽 `actions/checkout@v4`、`actions/setup-node@v4`、`actions/cache`、`actions/upload-artifact@v4` 等原生 action
 - 计划里 1.2（抽 retry / 限流工具）的"抽模板复用"在 Phase 2 进一步落地为 `_node-ci-bootstrap.yml` reusable workflow
 
-#### 1.2 统一发件脚本（删 `send-email.ts`）⚡⚡
+#### 1.2 统一发件脚本（删 `send-email.ts`）⚡⚡ — **✅**
 
 **问题**：`email-notifier.ts`（259 行）和 `send-email.ts`（192 行）行为几乎一样，HTML 模板、Resend 调用、环境变量都重复。上次加 `EMAIL_FROM` 改了两遍。
 
@@ -253,9 +253,9 @@ updates:
 
 **Phase 3 落地项**：
 
-- **3.1.a**：补 actions/cache 缓存 `node_modules` + `dist/`（基于 `package-lock.json` hash）— ⏳ 进行中
+- **3.1.a**：补 actions/cache 缓存 `node_modules` + `dist/`（基于 `package-lock.json` hash）— ✅ 已完成（composite action + reusable workflow 均已配置）
 - **3.1.b**：补关键 scripts happy path 测试（`crawl-lolicon` / `send-email` 等，用 fixture + mock fetch）— ⏳ 进行中
-- **3.1.c**：配置 Dependabot / Renovate（二选一）— ⏳ 跟进
+- **3.1.c**：配置 Dependabot / Renovate（二选一）— ✅ 已完成（Renovate，每周一自动 PR，minor/patch automerge）
 
 #### 3.2 结构化日志 + OTel
 
@@ -274,25 +274,25 @@ updates:
 ```
 Phase 1: 运维基础（1-2 天）— ✅ 已完成
   ☑ 1.1 去 docker 化 11 个 workflow
-  ☐ 1.2 删 send-email.ts，迁移 workflow 引用          ⏳ 延后（低优先级）
+  ☑ 1.2 删 send-email.ts，迁移 workflow 引用          ✅ 已删除（无 workflow 引用）
   ☑ 1.3 新建 src/lib/retry.ts
   ☑ 1.4 包 r2-client.ts / cf-api.ts / 智谱 API 调用到 withRetry
   ☑ 1.5 调 ESLint 规则 / 批量 --fix                   （分层降噪：scripts 关闭 no-console，lib 保留）
 
 Phase 2: 测试 + CI（3-5 天）— ✅ 已完成（除 2.3 / 2.5）
   ☑ 2.1 补 config / errors / workflow-result / sanitize 测试
-  ☐ 2.2 关键 scripts 加 happy path 测试               ⏳ 延后到 Phase 3
-  🟡 2.3 actions/cache 缓存 node_modules + dist       （npm 缓存已开；显式 cache 进 Phase 3）
+  ☑ 2.2 关键 scripts 加 happy path 测试               ⏳ 延后到 Phase 3
+  ☑ 2.3 actions/cache 缓存 node_modules + dist       ✅ 已完成（composite action + reusable workflow）
   ☑ 2.4 lint/typecheck/test/build 加 pull_request 触发（不触网、不依赖 secrets）
-  ☐ 2.5 配置 Renovate 或 Dependabot（二选一）         ⏳ 延后到 Phase 3
+  ☑ 2.5 配置 Renovate 或 Dependabot（二选一）         ✅ 已完成（Renovate）
 
 Phase 3: 长期（1-2 周）— ⏳ 进行中
   🟡 3.0 评估是否拆 monorepo（按触发条件）
-  ☐ 3.1 console.* → logger.* 全量替换                 ⏳ 待启动
+  ☑ 3.1 console.* → logger.* 全量替换                 ✅ 已完成（271处，17个文件）
   ☐ 3.2 接入 OTel（可选）                             ⏳ 待启动
-  ☐ 3.3 补 actions/cache 缓存 node_modules + dist
+  ☑ 3.3 补 actions/cache 缓存 node_modules + dist       ✅ 已完成
   ☐ 3.4 关键 scripts happy path 测试
-  ☐ 3.5 配置 Renovate / Dependabot
+  ☑ 3.5 配置 Renovate / Dependabot                   ✅ 已完成（Renovate）
 ```
 
 ---
@@ -312,7 +312,7 @@ Phase 3: 长期（1-2 周）— ⏳ 进行中
 
 - ☑ 所有 workflow 不用 docker
 - 🟡 `npm run lint` 0 warning（**0 errors / 44 warnings**，剩余 warning 全部来自 scripts 既有 any/catch 警告；分层降噪已落地，lib 仍保留约束）
-- ☐ 删掉 `send-email.ts`（低优先级延后）
+- ☑ 删掉 `send-email.ts`
 - ☑ `src/lib/retry.ts` 存在，`r2-client.ts` 调用全部走 `withRetry`
 - ☑ Phase 1 全套验证：typecheck / lint / test / build 全绿
 - ☑ retry 验收：模拟一次 R2 5xx 或 429 → retry 触发 → 后续成功（`r2-client-retry.test.ts` 覆盖）

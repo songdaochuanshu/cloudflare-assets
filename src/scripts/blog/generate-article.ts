@@ -11,6 +11,8 @@ import {
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 import { removeAISlop } from '../../lib/anti-slop.js';
+import { parseJSON } from '../../lib/json-parse.js';
+import { logger } from '../../lib/logger.js';
 
 // R2 配置
 const R2_ENDPOINT = `https://${process.env.CF_ACCOUNT_ID ?? ''}.r2.cloudflarestorage.com`;
@@ -102,66 +104,6 @@ function callZhipu(prompt: string, maxTokens = 300): Promise<string> {
   });
 }
 
-function safeJSONParse<T>(str: string): T | null {
-  try {
-    return JSON.parse(str) as T;
-  } catch {
-    return null;
-  }
-}
-
-function findFirstJSONBlock(raw: string): string | null {
-  const startIdx = raw.indexOf('{');
-  if (startIdx === -1) return null;
-  let depth = 0;
-  for (let i = startIdx; i < raw.length; i++) {
-    if (raw[i] === '{') depth++;
-    else if (raw[i] === '}') {
-      depth--;
-      if (depth === 0) return raw.slice(startIdx, i + 1);
-    }
-  }
-  return null;
-}
-
-function attemptJSONRepair(str: string): string {
-  let s = str.trim();
-  s = s
-    .replace(/```(?:json)?\s*\n?/g, '')
-    .replace(/```\s*$/g, '')
-    .trim();
-  // 去掉末尾多余的逗号（AI 最常犯的错误）
-  s = s.replace(/,\s*([}\]])/g, '$1');
-  return s;
-}
-
-function parseJSON<T = unknown>(raw: string): T {
-  // 候选字符串列表（优先级从高到低）
-  const candidates = [
-    // 1. ```json ... ``` 代码块内
-    raw.match(/```(?:json)?\s*\n?([\s\S]*?)```/)?.[1]?.trim(),
-    // 2. 第一个完整 JSON 对象（扫描平衡花括号）
-    findFirstJSONBlock(raw),
-    // 3. 最外层 { ... } 贪心匹配
-    raw.match(/^\s*(\{[\s\S]*\})/)?.[1]?.trim(),
-    // 4. 整段文本兜底
-    raw.trim(),
-  ];
-
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    // 直接解析
-    let result = safeJSONParse<T>(candidate);
-    if (result) return result;
-    // 修复后重试（去末尾逗号等）
-    const repaired = attemptJSONRepair(candidate);
-    result = safeJSONParse<T>(repaired);
-    if (result) return result;
-  }
-
-  throw new Error('无法解析 AI 返回的 JSON: ' + raw.substring(0, 300));
-}
-
 // ──────────────────────────────────────────────
 // 博客园标题抓取
 // ──────────────────────────────────────────────
@@ -193,7 +135,7 @@ async function fetchCnblogsTitles(count = 30): Promise<string[]> {
     if (titles.size >= count) break;
   }
 
-  console.log(`[generate-article] 从博客园获取 ${titles.size} 个标题`);
+  logger.info(`[generate-article] 从博客园获取 ${titles.size} 个标题`);
   return Array.from(titles);
 }
 
@@ -215,11 +157,11 @@ async function getUsedTitles(): Promise<string[]> {
         // ignore read errors
       }
     }
-    console.log(`[generate-article] R2 已有 ${titles.length} 篇文章`);
+    logger.info(`[generate-article] R2 已有 ${titles.length} 篇文章`);
     return titles;
   } catch {
     // e unused
-    console.log('[generate-article] R2 读取失败,视为空白');
+    logger.info('[generate-article] R2 读取失败,视为空白');
     return [];
   }
 }
@@ -259,16 +201,16 @@ ${cnTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       const raw = await callZhipu(prompt, 1500);
-      console.log(`[generate-article] AI 标题筛选完成(尝试 ${attempt}/${MAX_RETRIES})`);
+      logger.info(`[generate-article] AI 标题筛选完成(尝试 ${attempt}/${MAX_RETRIES})`);
       return parseJSON<ChosenResult>(raw);
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
-      console.warn(
+      logger.warn(
         `[generate-article] 标题筛选 JSON 解析失败(尝试 ${attempt}/${MAX_RETRIES}): ${lastError.message}`,
       );
       if (attempt < MAX_RETRIES) {
         const delay = Math.min(2000 * Math.pow(2, attempt - 1), 8000);
-        console.log(`[generate-article] 等待 ${delay}ms 后重试...`);
+        logger.info(`[generate-article] 等待 ${delay}ms 后重试...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
@@ -314,10 +256,10 @@ async function pickUnusedTopic(): Promise<string> {
 
   for (const title of candidates) {
     if (await r2FileExists(title)) {
-      console.log(`[generate-article] 跳过(R2 已存在):${title}`);
+      logger.info(`[generate-article] 跳过(R2 已存在):${title}`);
       continue;
     }
-    console.log(`[generate-article] 选中标题: ${title}`);
+    logger.info(`[generate-article] 选中标题: ${title}`);
     return title;
   }
 
@@ -328,7 +270,7 @@ async function pickUnusedTopic(): Promise<string> {
 // 智谱 AI 生成
 // ──────────────────────────────────────────────
 async function generateArticle(topic: string): Promise<string> {
-  console.log(`[generate-article] 开始生成文章:《${topic}》`);
+  logger.info(`[generate-article] 开始生成文章:《${topic}》`);
 
   const prompt = `你是一位技术博主,写了 10 年博客。请用你的真实口吻写一篇关于"${topic}"的文章。
 
@@ -345,7 +287,7 @@ async function generateArticle(topic: string): Promise<string> {
 ⚠️ 最重要的一条：文章最后一个论点写完就立刻结束。不要写任何总结、不要写"总之"、不要写"以上就是"、不要写"希望对大家有帮助"、不要写"拜拜"、不要写"下次见"。写完正文直接停笔。`;
 
   const content = await callZhipu(prompt, 2500);
-  console.log(`[generate-article] ✅ 文章生成成功(${content.length} 字符)`);
+  logger.info(`[generate-article] ✅ 文章生成成功(${content.length} 字符)`);
   return content;
 }
 
@@ -382,7 +324,7 @@ AI、前端、后端、DevOps、DevTools、数据库、安全、云计算、性�
       return result;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
-      console.warn(`[generate-article] 分类标签解析失败(尝试 ${attempt}/3): ${lastError.message}`);
+      logger.warn(`[generate-article] 分类标签解析失败(尝试 ${attempt}/3): ${lastError.message}`);
       if (attempt < 3) {
         const delay = Math.min(2000 * Math.pow(2, attempt - 1), 8000);
         await new Promise((resolve) => setTimeout(resolve, delay));
@@ -396,7 +338,7 @@ AI、前端、后端、DevOps、DevTools、数据库、安全、云计算、性�
 // AI 润色：去 AI 味
 // ──────────────────────────────────────────────
 async function polishArticle(topic: string, content: string): Promise<string> {
-  console.log(`[generate-article] 润色文章 (${content.length} 字符)...`);
+  logger.info(`[generate-article] 润色文章 (${content.length} 字符)...`);
 
   const prompt = `你是一个文章编辑。请把下面这篇技术博客润色一遍，让它读起来更像真人写的，不像 AI 生成的。
 
@@ -415,7 +357,7 @@ async function polishArticle(topic: string, content: string): Promise<string> {
 ${content}`;
 
   const result = await callZhipu(prompt, 3000);
-  console.log(`[generate-article] ✅ 润色完成 (${result.length} 字符)`);
+  logger.info(`[generate-article] ✅ 润色完成 (${result.length} 字符)`);
   return result;
 }
 
@@ -458,7 +400,7 @@ layout: post
   });
 
   await s3.send(command);
-  console.log(`[generate-article] ✅ 上传成功:${filename}`);
+  logger.info(`[generate-article] ✅ 上传成功:${filename}`);
   return filename;
 }
 
@@ -496,10 +438,10 @@ async function updateManifest(post: ManifestPost): Promise<void> {
       ContentType: 'application/json',
     });
     await s3.send(cmd2);
-    console.log('[generate-article] ✅ manifest.json 已更新');
+    logger.info('[generate-article] ✅ manifest.json 已更新');
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error('[generate-article] manifest 更新失败:', msg);
+    logger.error(`[generate-article] manifest 更新失败:${msg}`);
   }
 }
 
@@ -508,26 +450,26 @@ async function updateManifest(post: ManifestPost): Promise<void> {
 // ──────────────────────────────────────────────
 async function main(): Promise<void> {
   if (!ZHIPU_API_KEY) {
-    console.error('[generate-article] 错误:未设置 ZHIPU_API_KEY');
+    logger.error('[generate-article] 错误:未设置 ZHIPU_API_KEY');
     process.exit(1);
   }
 
   try {
     const topic = await pickUnusedTopic();
-    console.log(`[generate-article] 主题:${topic}`);
+    logger.info(`[generate-article] 主题:${topic}`);
 
     const content = await generateArticle(topic);
 
     // 去除 AI 味
-    console.log('[generate-article] 🎯 去除 AI 味...');
+    logger.info('[generate-article] 🎯 去除 AI 味...');
     const { content: cleanContent, score, avgLen } = removeAISlop(content);
 
     // AI 润色：让文章更像人写的
-    console.log('[generate-article] ✨ AI 润色...');
+    logger.info('[generate-article] ✨ AI 润色...');
     const polished = await polishArticle(topic, cleanContent);
 
     // AI 生成分类和标签
-    console.log('[generate-article] 🏷️  AI 生成分类标签...');
+    logger.info('[generate-article] 🏷️  AI 生成分类标签...');
     const { category, tags } = await askAIForCategoryAndTags(topic, polished);
 
     await uploadToR2(topic, polished, category, tags);
@@ -574,11 +516,11 @@ async function main(): Promise<void> {
     };
 
     writeFileSync('workflow-result.json', JSON.stringify(summary, null, 2));
-    console.log('[generate-article] 📋 结果摘要已生成');
-    console.log('[generate-article] ✅ 完成!');
+    logger.info('[generate-article] 📋 结果摘要已生成');
+    logger.info('[generate-article] ✅ 完成!');
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error('[generate-article] 错误:', msg);
+    logger.error(`[generate-article] 错误:${msg}`);
     process.exit(1);
   }
 }

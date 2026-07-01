@@ -3,6 +3,7 @@
 // 通过 Pixiv oEmbed API 获取（无需登录）
 import { readFileSync, writeFileSync } from 'node:fs';
 import type { ImageEntry, ImagesInfo, PixivOEmbed } from '../../lib/types.js';
+import { logger } from '../../lib/logger.js';
 
 const IMAGES_INFO_PATH = './images-info.json';
 const BATCH_SIZE = 10; // 每批处理 10 张
@@ -25,7 +26,7 @@ async function fetchPixivMetadata(pid: number): Promise<{
     });
 
     if (!resp.ok) {
-      console.log(`  ❌ PID ${pid}: HTTP ${resp.status}`);
+      logger.info(`  ❌ PID ${pid}: HTTP ${resp.status}`);
       return null;
     }
 
@@ -52,7 +53,7 @@ async function fetchPixivMetadata(pid: number): Promise<{
     };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.log(`  ❌ PID ${pid}: ${msg}`);
+    logger.info(`  ❌ PID ${pid}: ${msg}`);
     return null;
   }
 }
@@ -63,11 +64,11 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  console.log('=== 图片元数据补全工具 ===');
-  console.log('');
+  logger.info('=== 图片元数据补全工具 ===');
+  logger.info('');
 
   // 读取现有数据
-  console.log('读取 images-info.json...');
+  logger.info('读取 images-info.json...');
   const rawData: unknown = JSON.parse(readFileSync(IMAGES_INFO_PATH, 'utf8'));
 
   // 兼容新旧格式
@@ -84,17 +85,17 @@ async function main(): Promise<void> {
     allImages = [...classified.r18, ...classified.normal];
   }
 
-  console.log(`总图片数: ${allImages.length}`);
+  logger.info(`总图片数: ${allImages.length}`);
 
   // 统计需要补全的图片
   const needEnrich = allImages.filter(
     (img: ImageEntry) => !img.title || !img.author || !img.width || !img.height,
   );
-  console.log(`需要补全元数据: ${needEnrich.length} 张`);
-  console.log('');
+  logger.info(`需要补全元数据: ${needEnrich.length} 张`);
+  logger.info('');
 
   if (needEnrich.length === 0) {
-    console.log('✅ 所有图片已有完整元数据，无需补全');
+    logger.info('✅ 所有图片已有完整元数据，无需补全');
     return;
   }
 
@@ -104,10 +105,10 @@ async function main(): Promise<void> {
 
   for (let i = 0; i < needEnrich.length; i += BATCH_SIZE) {
     const batch = needEnrich.slice(i, i + BATCH_SIZE);
-    console.log(`\n处理第 ${Math.floor(i / BATCH_SIZE) + 1} 批 (${batch.length} 张)...`);
+    logger.info(`\n处理第 ${Math.floor(i / BATCH_SIZE) + 1} 批 (${batch.length} 张)...`);
 
     for (const img of batch) {
-      console.log(`  PID: ${img.pid}...`);
+      logger.info(`  PID: ${img.pid}...`);
       const metadata = await fetchPixivMetadata(img.pid);
 
       if (metadata) {
@@ -118,10 +119,10 @@ async function main(): Promise<void> {
         img.height = metadata.height;
         // tags 暂时留空（oEmbed 不返回）
         successCount++;
-        console.log(`    ✅ ${metadata.title} (by ${metadata.author})`);
+        logger.info(`    ✅ ${metadata.title} (by ${metadata.author})`);
       } else {
         failCount++;
-        console.log(`    ❌ 获取失败`);
+        logger.info(`    ❌ 获取失败`);
       }
 
       // 延迟，避免被限流
@@ -129,13 +130,13 @@ async function main(): Promise<void> {
     }
   }
 
-  console.log('\n========== 补全完成 ==========');
-  console.log(`成功: ${successCount} 张`);
-  console.log(`失败: ${failCount} 张`);
-  console.log('');
+  logger.info('\n========== 补全完成 ==========');
+  logger.info(`成功: ${successCount} 张`);
+  logger.info(`失败: ${failCount} 张`);
+  logger.info('');
 
   // 写回文件
-  console.log('写入 images-info.json...');
+  logger.info('写入 images-info.json...');
   let outputData: ImageEntry[] | ImagesInfo;
   if (Array.isArray(rawData)) {
     outputData = allImages;
@@ -147,9 +148,9 @@ async function main(): Promise<void> {
   }
 
   writeFileSync(IMAGES_INFO_PATH, JSON.stringify(outputData, null, 2), 'utf8');
-  console.log('✅ 已更新 images-info.json');
-  console.log('');
-  console.log('⚠️  请手动运行 update-images-info.ts 上传到 R2');
+  logger.info('✅ 已更新 images-info.json');
+  logger.info('');
+  logger.info('⚠️  请手动运行 update-images-info.ts 上传到 R2');
 }
 
 void main();

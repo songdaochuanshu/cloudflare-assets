@@ -64,7 +64,11 @@ async function cfFetch<T = unknown>(method: string, path: string, body?: unknown
 
   if (!json.success) {
     const msgs = json.errors.map((e) => `[${e.code}] ${e.message}`).join('; ');
-    throw new ApiError(`Cloudflare API 错误: ${msgs}`, resp.status, { method, path, errors: json.errors });
+    throw new ApiError(`Cloudflare API 错误: ${msgs}`, resp.status, {
+      method,
+      path,
+      errors: json.errors,
+    });
   }
   return json.result;
 }

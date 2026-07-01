@@ -17,6 +17,7 @@ import {
   findZoneId,
 } from '../../lib/cf-api.js';
 import { writeWorkflowResult, elapsed } from '../../lib/workflow-result.js';
+import { logger } from '../../lib/logger.js';
 
 interface DomainsConfig {
   r2?: Record<string, { domains: string[] }>;
@@ -61,11 +62,11 @@ async function syncR2(
         const zoneId = await findZoneId(domain);
         await addR2Domain(bucket, domain, zoneId ?? undefined);
         added.push(`R2/${bucket}: ${domain}`);
-        console.log(`  ✅ 已添加 R2/${bucket}: ${domain}`);
+        logger.info(`  ✅ 已添加 R2/${bucket}: ${domain}`);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         errors.push(`R2/${bucket}: 添加 ${domain} 失败 — ${msg}`);
-        console.log(`  ❌ R2/${bucket}: 添加 ${domain} 失败 — ${msg}`);
+        logger.info(`  ❌ R2/${bucket}: 添加 ${domain} 失败 — ${msg}`);
       }
     }
 
@@ -75,11 +76,11 @@ async function syncR2(
       try {
         await removeR2Domain(bucket, d.domain);
         removed.push(`R2/${bucket}: ${d.domain}`);
-        console.log(`  🗑️  已删除 R2/${bucket}: ${d.domain}`);
+        logger.info(`  🗑️  已删除 R2/${bucket}: ${d.domain}`);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         errors.push(`R2/${bucket}: 删除 ${d.domain} 失败 — ${msg}`);
-        console.log(`  ❌ R2/${bucket}: 删除 ${d.domain} 失败 — ${msg}`);
+        logger.info(`  ❌ R2/${bucket}: 删除 ${d.domain} 失败 — ${msg}`);
       }
     }
   }
@@ -114,11 +115,11 @@ async function syncPages(
       try {
         await addPagesDomain(project, domain);
         added.push(`Pages/${project}: ${domain}`);
-        console.log(`  ✅ 已添加 Pages/${project}: ${domain}`);
+        logger.info(`  ✅ 已添加 Pages/${project}: ${domain}`);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         errors.push(`Pages/${project}: 添加 ${domain} 失败 — ${msg}`);
-        console.log(`  ❌ Pages/${project}: 添加 ${domain} 失败 — ${msg}`);
+        logger.info(`  ❌ Pages/${project}: 添加 ${domain} 失败 — ${msg}`);
       }
     }
 
@@ -127,11 +128,11 @@ async function syncPages(
       try {
         await removePagesDomain(project, d.name);
         removed.push(`Pages/${project}: ${d.name}`);
-        console.log(`  🗑️  已删除 Pages/${project}: ${d.name}`);
+        logger.info(`  🗑️  已删除 Pages/${project}: ${d.name}`);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         errors.push(`Pages/${project}: 删除 ${d.name} 失败 — ${msg}`);
-        console.log(`  ❌ Pages/${project}: 删除 ${d.name} 失败 — ${msg}`);
+        logger.info(`  ❌ Pages/${project}: 删除 ${d.name} 失败 — ${msg}`);
       }
     }
   }
@@ -172,11 +173,11 @@ async function syncWorkerRoutes(
       if (existing) await deleteWorkerRoute(existing.id);
       await createWorkerRoute(route.pattern, route.worker);
       added.push(`Workers 路由: ${route.pattern} → ${route.worker}`);
-      console.log(`  ✅ 已添加 Workers 路由: ${route.pattern} → ${route.worker}`);
+      logger.info(`  ✅ 已添加 Workers 路由: ${route.pattern} → ${route.worker}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       errors.push(`Workers 路由: ${route.pattern} 失败 — ${msg}`);
-      console.log(`  ❌ Workers 路由: ${route.pattern} 失败 — ${msg}`);
+      logger.info(`  ❌ Workers 路由: ${route.pattern} 失败 — ${msg}`);
     }
   }
 
@@ -184,7 +185,7 @@ async function syncWorkerRoutes(
     if (desiredPatterns.has(r.pattern)) continue;
     // 只删除配置文件中提到的 workers 路由（避免删掉用户手动创建的）
     // 这里不做自动删除，只提示
-    console.log(`  ⚠️  现有路由未在配置中: ${r.pattern} → ${r.script}（跳过）`);
+    logger.info(`  ⚠️  现有路由未在配置中: ${r.pattern} → ${r.script}（跳过）`);
   }
 
   return { added, removed, kept, errors };
@@ -229,18 +230,18 @@ async function syncWorkerDomains(
         if (existing) await removeWorkerDomain(existing.id);
         await addWorkerDomain(hostname, service, zoneId);
         added.push(`Workers 域名: ${hostname} → ${service}`);
-        console.log(`  ✅ 已添加 Workers 域名: ${hostname} → ${service}`);
+        logger.info(`  ✅ 已添加 Workers 域名: ${hostname} → ${service}`);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         errors.push(`Workers 域名: ${hostname} 失败 — ${msg}`);
-        console.log(`  ❌ Workers 域名: ${hostname} 失败 — ${msg}`);
+        logger.info(`  ❌ Workers 域名: ${hostname} 失败 — ${msg}`);
       }
     }
   }
 
   for (const d of current) {
     if (allDesiredHostnames.has(d.hostname)) continue;
-    console.log(`  ⚠️  现有域名未在配置中: ${d.hostname} → ${d.service}（跳过）`);
+    logger.info(`  ⚠️  现有域名未在配置中: ${d.hostname} → ${d.service}（跳过）`);
   }
 
   return { added, removed, kept, errors };
@@ -250,25 +251,25 @@ async function main(): Promise<void> {
   const startTime = Date.now();
   const config = loadConfig();
 
-  console.log('═══════════════════════════════════════════');
-  console.log('  Cloudflare 自定义域名同步');
-  console.log('═══════════════════════════════════════════\n');
+  logger.info('═══════════════════════════════════════════');
+  logger.info('  Cloudflare 自定义域名同步');
+  logger.info('═══════════════════════════════════════════\n');
 
-  console.log('📦 R2 自定义域名');
+  logger.info('📦 R2 自定义域名');
   const r2 = await syncR2(config);
-  console.log('');
+  logger.info('');
 
-  console.log('📄 Pages 自定义域名');
+  logger.info('📄 Pages 自定义域名');
   const pages = await syncPages(config);
-  console.log('');
+  logger.info('');
 
-  console.log('⚡ Workers 路由');
+  logger.info('⚡ Workers 路由');
   const routes = await syncWorkerRoutes(config);
-  console.log('');
+  logger.info('');
 
-  console.log('⚡ Workers 自定义域名');
+  logger.info('⚡ Workers 自定义域名');
   const workerDomains = await syncWorkerDomains(config);
-  console.log('');
+  logger.info('');
 
   // 汇总
   const allAdded = [...r2.added, ...pages.added, ...routes.added, ...workerDomains.added];
@@ -276,11 +277,11 @@ async function main(): Promise<void> {
   const allKept = [...r2.kept, ...pages.kept, ...routes.kept, ...workerDomains.kept];
   const allErrors = [...r2.errors, ...pages.errors, ...routes.errors, ...workerDomains.errors];
 
-  console.log('═══════════════════════════════════════════');
-  console.log(
+  logger.info('═══════════════════════════════════════════');
+  logger.info(
     `  ✅ 添加: ${allAdded.length}  🗑️  删除: ${allRemoved.length}  ⏭️  保持: ${allKept.length}  ❌ 错误: ${allErrors.length}`,
   );
-  console.log('═══════════════════════════════════════════');
+  logger.info('═══════════════════════════════════════════');
 
   writeWorkflowResult({
     success: allErrors.length === 0,
@@ -310,6 +311,6 @@ main().catch((err: Error) => {
     details: [],
     error: err.message,
   });
-  console.error('❌ 错误:', err.message);
+  logger.error(`❌ 错误:${err.message}`);
   process.exit(1);
 });

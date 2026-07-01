@@ -9,11 +9,7 @@ vi.hoisted(() => {
   process.env.R2_SECRET_KEY = 'sec';
 });
 
-import {
-  elapsed,
-  writeWorkflowResult,
-  type WorkflowResult,
-} from '../lib/workflow-result.js';
+import { elapsed, writeWorkflowResult, type WorkflowResult } from '../lib/workflow-result.js';
 
 describe('workflow-result', () => {
   let cwd = process.cwd();
