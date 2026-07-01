@@ -126,7 +126,10 @@ function findFirstJSONBlock(raw: string): string | null {
 
 function attemptJSONRepair(str: string): string {
   let s = str.trim();
-  s = s.replace(/```(?:json)?\s*\n?/g, '').replace(/```\s*$/g, '').trim();
+  s = s
+    .replace(/```(?:json)?\s*\n?/g, '')
+    .replace(/```\s*$/g, '')
+    .trim();
   // 去掉末尾多余的逗号（AI 最常犯的错误）
   s = s.replace(/,\s*([}\]])/g, '$1');
   return s;
@@ -260,7 +263,9 @@ ${cnTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
       return parseJSON<ChosenResult>(raw);
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
-      console.warn(`[generate-article] 标题筛选 JSON 解析失败(尝试 ${attempt}/${MAX_RETRIES}): ${lastError.message}`);
+      console.warn(
+        `[generate-article] 标题筛选 JSON 解析失败(尝试 ${attempt}/${MAX_RETRIES}): ${lastError.message}`,
+      );
       if (attempt < MAX_RETRIES) {
         const delay = Math.min(2000 * Math.pow(2, attempt - 1), 8000);
         console.log(`[generate-article] 等待 ${delay}ms 后重试...`);
@@ -369,7 +374,7 @@ AI、前端、后端、DevOps、DevTools、数据库、安全、云计算、性�
 返回纯 JSON,不要代码块:
 {"category": "分类名", "tags": ["标签1", "标签2", "标签3"]}`;
 
-    let lastError: Error | null = null;
+  let lastError: Error | null = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const raw = await callZhipu(prompt, 300);

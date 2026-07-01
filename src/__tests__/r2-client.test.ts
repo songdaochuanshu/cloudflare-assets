@@ -172,7 +172,9 @@ describe('r2-client', () => {
         })),
       );
 
-      const result = await uploadToR2('test.jpg', Buffer.from('fake'), 'image/jpeg');
+      const result = await uploadToR2('test.jpg', Buffer.from('fake'), {
+        contentType: 'image/jpeg',
+      });
       expect(result).toBe(true);
     });
 
