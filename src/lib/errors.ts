@@ -1,8 +1,6 @@
 // errors.ts — 自定义错误类体系
 export class AppError extends Error {
-  // eslint-disable-next-line no-unused-vars
   public readonly code: string;
-  // eslint-disable-next-line no-unused-vars
   public readonly context?: Record<string, unknown>;
 
   constructor(message: string, code: string, context?: Record<string, unknown>) {
