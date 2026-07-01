@@ -320,10 +320,7 @@ export async function listPagesProjects(): Promise<PagesProject[]> {
 
 /** 获取某个 Pages 项目的详细信息 */
 export async function getPagesProject(projectName: string): Promise<PagesProject> {
-  return cfFetch<PagesProject>(
-    'GET',
-    `/accounts/${CF_ACCOUNT_ID}/pages/projects/${projectName}`,
-  );
+  return cfFetch<PagesProject>('GET', `/accounts/${CF_ACCOUNT_ID}/pages/projects/${projectName}`);
 }
 
 /** 删除某个 Pages 项目 */
@@ -346,10 +343,7 @@ export async function triggerDeployment(
 }
 
 /** 列出项目的部署历史（默认最新 20 条） */
-export async function listDeployments(
-  projectName: string,
-  page = 1,
-): Promise<PagesDeployment[]> {
+export async function listDeployments(projectName: string, page = 1): Promise<PagesDeployment[]> {
   const result = await cfFetch<{ deployments: PagesDeployment[]; per_page: number }>(
     'GET',
     `/accounts/${CF_ACCOUNT_ID}/pages/projects/${projectName}/deployments?page=${page}&per_page=20`,
@@ -436,10 +430,7 @@ export async function getPagesAccountInfo(): Promise<{
   pages_domains_limit: number;
   quota_account: { included: number; used: number };
 }> {
-  return cfFetch(
-    'GET',
-    `/accounts/${CF_ACCOUNT_ID}/pages/projects`,
-  ) as Promise<{
+  return cfFetch('GET', `/accounts/${CF_ACCOUNT_ID}/pages/projects`) as Promise<{
     allowed_member_count: number;
     build_timeout: number;
     is_runnable: boolean;

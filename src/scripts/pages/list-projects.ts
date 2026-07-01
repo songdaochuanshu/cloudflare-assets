@@ -1,9 +1,6 @@
 // src/scripts/pages/list-projects.ts
 // 列出 Cloudflare Pages 所有项目及其关键信息
-import {
-  listPagesProjects,
-  listDeployments,
-} from '../../lib/cf-api.js';
+import { listPagesProjects, listDeployments } from '../../lib/cf-api.js';
 import { logger } from '../../lib/logger.js';
 
 function statusEmoji(status: string): string {

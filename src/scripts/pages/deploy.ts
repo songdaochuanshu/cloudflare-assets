@@ -9,14 +9,18 @@ import { logger } from '../../lib/logger.js';
 const [, , rawProject, rawBranch] = process.argv;
 
 if (!rawProject) {
-  console.error('用法: node dist/scripts/pages/deploy.js <projectName> [branch] [--cancel <deploymentId>]');
+  console.error(
+    '用法: node dist/scripts/pages/deploy.js <projectName> [branch] [--cancel <deploymentId>]',
+  );
   process.exit(1);
 }
 
 const projectName = rawProject;
 const branch = rawBranch && rawBranch !== '--cancel' ? rawBranch : undefined;
 const cancelMode = process.argv.includes('--cancel');
-const cancelDeploymentId = cancelMode ? process.argv[process.argv.indexOf('--cancel') + 1] : undefined;
+const cancelDeploymentId = cancelMode
+  ? process.argv[process.argv.indexOf('--cancel') + 1]
+  : undefined;
 
 async function pollDeployment(pid: string, depId: string, timeoutMs = 300_000): Promise<void> {
   const start = Date.now();

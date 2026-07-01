@@ -6,10 +6,7 @@
 //   node dist/scripts/pages/env.js delete <project> [production|preview] KEY [KEY...]
 //   node dist/scripts/pages/env.js import <project> [production|preview] <envFilePath>
 import { readFileSync } from 'node:fs';
-import {
-  getProjectVariables,
-  setProjectVariables,
-} from '../../lib/cf-api.js';
+import { getProjectVariables, setProjectVariables } from '../../lib/cf-api.js';
 import { logger } from '../../lib/logger.js';
 
 type Action = 'list' | 'set' | 'delete' | 'import';
@@ -44,7 +41,9 @@ function parseKeyValues(args: string[]): Array<{ name: string; value: string; ty
   });
 }
 
-async function loadEnvFile(filePath: string): Promise<Array<{ name: string; value: string; type?: string }>> {
+async function loadEnvFile(
+  filePath: string,
+): Promise<Array<{ name: string; value: string; type?: string }>> {
   const raw = readFileSync(filePath, 'utf8');
   const lines = raw.split('\n').filter((l) => !l.startsWith('#') && l.includes('='));
   return lines.map((line) => {
@@ -52,7 +51,10 @@ async function loadEnvFile(filePath: string): Promise<Array<{ name: string; valu
     const name = line.slice(0, eqIdx).trim();
     let value = line.slice(eqIdx + 1).trim();
     // 去掉首尾引号
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
       value = value.slice(1, -1);
     }
     const type = /^-?\d+(\.\d+)?$/.test(value) ? 'number' : undefined;
@@ -119,9 +121,15 @@ async function main(): Promise<void> {
   if (!action || !project) {
     logger.error('用法:');
     logger.error('  node dist/scripts/pages/env.js list <project> [production|preview]');
-    logger.error('  node dist/scripts/pages/env.js set <project> [production|preview] KEY=VALUE [KEY=VALUE...]');
-    logger.error('  node dist/scripts/pages/env.js delete <project> [production|preview] KEY [KEY...]');
-    logger.error('  node dist/scripts/pages/env.js import <project> [production|preview] <.env文件路径>');
+    logger.error(
+      '  node dist/scripts/pages/env.js set <project> [production|preview] KEY=VALUE [KEY=VALUE...]',
+    );
+    logger.error(
+      '  node dist/scripts/pages/env.js delete <project> [production|preview] KEY [KEY...]',
+    );
+    logger.error(
+      '  node dist/scripts/pages/env.js import <project> [production|preview] <.env文件路径>',
+    );
     process.exit(1);
   }
 
