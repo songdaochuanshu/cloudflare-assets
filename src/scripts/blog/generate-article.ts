@@ -455,7 +455,8 @@ async function main(): Promise<void> {
   }
 
   try {
-    const topic = await pickUnusedTopic();
+    const inputTopic = process.argv[2];
+    const topic = inputTopic ? inputTopic.trim() : await pickUnusedTopic();
     logger.info(`[generate-article] 主题:${topic}`);
 
     const content = await generateArticle(topic);
