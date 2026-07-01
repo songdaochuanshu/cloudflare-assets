@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const NOTIFY_EMAIL = process.env.NOTIFY_EMAIL;
+const EMAIL_FROM = process.env.EMAIL_FROM || 'Cloudflare Assets <noreply@ai-email.openserve.cloud>';
 const STATUS = process.env.WORKFLOW_STATUS; // success 或 failure
 
 if (!RESEND_API_KEY || !NOTIFY_EMAIL) {
@@ -157,7 +158,7 @@ async function sendEmail(): Promise<void> {
   const subject = `${STATUS === 'success' ? '✅' : '❌'} Lolicon 爬虫通知 - ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`;
 
   const payload = {
-    from: 'Cloudflare Assets <onboarding@resend.dev>',
+    from: EMAIL_FROM,
     to: [NOTIFY_EMAIL],
     subject: subject,
     html: html,

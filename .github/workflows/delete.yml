@@ -48,6 +48,7 @@ jobs:
           docker run --rm \
             -e RESEND_API_KEY \
             -e NOTIFY_EMAIL \
+            -e EMAIL_FROM \
             -e WORKFLOW_NAME \
             -e WORKFLOW_STATUS \
             -v "${{ github.workspace }}:/app" \
@@ -57,5 +58,6 @@ jobs:
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           WORKFLOW_NAME: 'delete-non-lolicon'
           WORKFLOW_STATUS: ${{ job.status }}

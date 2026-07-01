@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const NOTIFY_EMAIL = process.env.NOTIFY_EMAIL;
+const EMAIL_FROM = process.env.EMAIL_FROM || 'Cloudflare Assets <onboarding@resend.dev>';
 const WORKFLOW_NAME = process.env.WORKFLOW_NAME || 'Unknown';
 const WORKFLOW_STATUS = process.env.WORKFLOW_STATUS || 'unknown';
 
@@ -267,7 +268,7 @@ async function sendNotification(): Promise<void> {
       Authorization: `Bearer ${RESEND_API_KEY}`,
     },
     body: JSON.stringify({
-      from: 'Cloudflare Assets <onboarding@resend.dev>',
+      from: EMAIL_FROM,
       to: [NOTIFY_EMAIL],
       subject,
       html,
