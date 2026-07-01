@@ -3,11 +3,11 @@ name: Crawl Lolicon Images (R18 + Normal)
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 1 * * *'   # UTC 01:00 (北京 09:00)
-    - cron: '0 5 * * *'   # UTC 05:00 (北京 13:00)
-    - cron: '0 9 * * *'   # UTC 09:00 (北京 17:00)
-    - cron: '0 13 * * *'  # UTC 13:00 (北京 21:00)
-    - cron: '0 17 * * *'  # UTC 17:00 (北京 01:00)
+    - cron: '0 1 * * *' # UTC 01:00 (北京 09:00)
+    - cron: '0 5 * * *' # UTC 05:00 (北京 13:00)
+    - cron: '0 9 * * *' # UTC 09:00 (北京 17:00)
+    - cron: '0 13 * * *' # UTC 13:00 (北京 21:00)
+    - cron: '0 17 * * *' # UTC 17:00 (北京 01:00)
 
 jobs:
   crawl:

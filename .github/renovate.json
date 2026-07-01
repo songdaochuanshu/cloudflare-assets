@@ -1,10 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended",
-    ":semanticCommits",
-    "group:allNonMajor"
-  ],
+  "extends": ["config:recommended", ":semanticCommits", "group:allNonMajor"],
   "labels": ["dependencies"],
   "packageRules": [
     {

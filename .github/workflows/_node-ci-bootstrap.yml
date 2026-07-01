@@ -11,8 +11,6 @@ on:
         required: false
         type: boolean
         default: false
-    secrets:
-      inherit: false
 
 jobs:
   install:
