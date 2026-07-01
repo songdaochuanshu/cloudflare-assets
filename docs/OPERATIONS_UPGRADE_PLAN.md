@@ -1,0 +1,256 @@
+# 🛠️ 运维与工程化提升计划
+
+> 配合 [CODE_QUALITY_UPGRADE_PLAN.md](./CODE_QUALITY_UPGRADE_PLAN.md) 一起读
+> 那个解决"代码好不好"，这个解决"跑得稳不稳、改得快不快"
+> 创建时间：2026-07-01
+> 状态：规划中（待实施）
+
+---
+
+## 📊 现状速览（截至 2026-07-01）
+
+| 维度                         | 数据                                              |
+| ---------------------------- | ------------------------------------------------- |
+| Workflow 数                  | 16                                                |
+| Docker 跑 npm ci 的 workflow | **11**（每次 ~30s+ 浪费）                         |
+| CI 步骤 typecheck            | ✅ 通过                                           |
+| ESLint warning 数            | **284**（全是 `no-console` / `no-explicit-any`）  |
+| 测试文件数                   | 2（仅 `r2-client` + `anti-slop`）                 |
+| 测试用例                     | 29                                                |
+| 重复发件脚本                 | `email-notifier.ts` + `send-email.ts`（重复实现） |
+| 重试机制                     | ❌ **完全没有**（fetch 失败直接抛）               |
+| Dependabot / Renovate        | ❌ 未配置                                         |
+| GitHub Actions cache         | ❌ 未配置                                         |
+
+**核心问题**：半夜被误报警吵醒（retry 缺失）+ 改个东西要等 30s+（docker 重复） + 改两遍同样的邮件代码（脚本重复）
+
+---
+
+## 🚀 实施计划（按性价比排序）
+
+### 【Phase 1】高价值低成本（1-2 天）
+
+#### 1.1 去 Docker 化 workflow ⚡⚡⚡
+
+**问题**：11 个 workflow 每个都 `docker run --rm node:20-slim`，先 `npm ci` 再 `npm run build`。每次跑都重复 30s+。
+
+**方案**：用 `actions/setup-node@v4` + `actions/cache` 直接在 runner 上跑 Node 20。
+
+**收益**：
+
+- `npm ci` 30s+ → 5s（命中缓存）
+- 删 11 个 docker 层，CI 配置可读性大幅提升
+- 调试方便（runner 直接 `node` 不是 docker exec）
+
+**实施模板**：
+
+```yaml
+- uses: actions/checkout@v4
+- uses: actions/setup-node@v4
+  with:
+    node-version: '20'
+    cache: 'npm'
+- run: npm ci
+- run: npm run typecheck
+- run: npm run build
+```
+
+#### 1.2 统一发件脚本（删 `send-email.ts`）⚡⚡
+
+**问题**：`email-notifier.ts`（259 行）和 `send-email.ts`（192 行）行为几乎一样，HTML 模板、Resend 调用、环境变量都重复。上次加 `EMAIL_FROM` 改了两遍。
+
+**方案**：
+
+- 删 `src/scripts/send-email.ts`
+- 所有引用迁移到 `email-notifier.ts`
+- 同步删 `send-email.ts` 相关 workflow（如有）
+
+**收益**：
+
+- 维护点 -1
+- 上次 `EMAIL_FROM` 那类改动以后只改一处
+
+#### 1.3 抽 retry / 限流工具 ⚡⚡⚡
+
+**问题**：grep `retry` 在 `src/` 下 0 命中。所有 R2 / Zhipu / CF API 调用都是一次性 `fetch`，网络抖动直接挂，半夜误报警。
+
+**方案**：新建 `src/lib/retry.ts`：
+
+```typescript
+// 指数退避 + 抖动，最多 3 次
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  opts: { retries?: number; baseDelayMs?: number } = {},
+): Promise<T> {
+  const { retries = 3, baseDelayMs = 500 } = opts;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt === retries) throw err;
+      const delay = baseDelayMs * 2 ** attempt + Math.random() * 200;
+      logger.warn(`retry attempt ${attempt + 1}/${retries} after ${delay}ms`, { err });
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw new Error('unreachable');
+}
+```
+
+包到 `r2-client.ts` / `cf-api.ts` / 智谱 API 调用外面。
+
+**收益**：
+
+- 网络抖动导致的失败邮件 ↓ 80%
+- 不再半夜被误报警叫醒
+
+#### 1.4 关掉 ESLint 284 个 warning ⚡
+
+**问题**：`npm run lint` 现在 284 个 warning，主要两类：
+
+- `no-console`（~277 处）
+- `no-explicit-any`（少量）
+
+**方案**：
+
+- 把这两条规则从 `warn` 调成 `off`（务实路线，迁移到 logger 是另一期工程）
+- 或者 `npm run lint:fix` 批量修能修的
+
+**收益**：CI 输出干净，看 warning 的人不会被噪音淹没
+
+---
+
+### 【Phase 2】测试 + CI 优化（3-5 天）
+
+#### 2.1 测试覆盖率 30% → 70%+
+
+**优先补这几个**：
+
+- `src/lib/config.ts`（环境变量 schema 各种边界 + CF_ACCOUNT_ID 兜底）
+- `src/lib/errors.ts`（异常类型映射）
+- `src/lib/workflow-result.ts`（JSON 输出格式）
+- `src/lib/sanitize.ts`（如真有边界）
+- 关键 scripts 的 happy path（用 fixture 喂假数据）
+
+**不补**：scripts 全部逻辑（成本太高，性价比低）
+
+**目标**：vitest --coverage ≥ 70%（不强求 80%）
+
+#### 2.2 Actions 缓存 + Matrix 化
+
+**问题**：`npm ci` + `npm run build` 重复跑。
+
+**方案**：
+
+- `actions/cache` 缓存 `node_modules`
+- 缓存 `dist/`（基于 package.json hash）
+
+#### 2.3 关键 workflow 加 `pull_request` 触发
+
+**问题**：`update-images-info.yml` 等只在 push main 时跑，分支改了没法早期发现。
+
+**方案**：
+
+```yaml
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+```
+
+#### 2.4 Dependabot / Renovate
+
+**方案**：在 `.github/dependabot.yml` 配置 npm + github-actions 周更。
+
+```yaml
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule: { interval: 'weekly' }
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule: { interval: 'weekly' }
+```
+
+---
+
+### 【Phase 3】长期架构演进（1-2 周）
+
+#### 3.1 拆 monorepo（如果继续扩张）
+
+**现状**：`src/scripts/{homepage-bg,blog,cdn,email-notifier}` 4 个域 + 16 个 workflow
+
+**方案**（如果继续加新域）：
+
+- pnpm workspaces
+- 拆 `@cloudflare-assets/r2`、`@cloudflare-assets/blog`、`@cloudflare-assets/cdn`
+
+**触发条件**：再增加 5+ 个 workflow 时
+
+#### 3.2 结构化日志 + OTel
+
+**问题**：`console.log` 277 处 + `logger.ts` 已有但没人用
+
+**方案**：
+
+- 全量替换 `console.*` → `logger.info/warn/error`
+- JSON 输出
+- 接 Loki / Datadog（可选）
+
+---
+
+## 📋 完整 CheckList
+
+```
+Phase 1: 运维基础（1-2 天）
+  ☐ 1.1 去 docker 化 11 个 workflow
+  ☐ 1.2 删 send-email.ts，迁移 workflow 引用
+  ☐ 1.3 新建 src/lib/retry.ts
+  ☐ 1.4 包 r2-client.ts / cf-api.ts / 智谱 API 调用到 withRetry
+  ☐ 1.5 调 ESLint 规则 / 批量 --fix
+
+Phase 2: 测试 + CI（3-5 天）
+  ☐ 2.1 补 config / errors / workflow-result / sanitize 测试
+  ☐ 2.2 关键 scripts 加 happy path 测试
+  ☐ 2.3 actions/cache 缓存 node_modules + dist
+  ☐ 2.4 关键 workflow 加 pull_request 触发
+  ☐ 2.5 配置 Dependabot
+
+Phase 3: 长期（1-2 周）
+  ☐ 3.1 评估是否拆 monorepo
+  ☐ 3.2 console.* → logger.* 全量替换
+  ☐ 3.3 接入 OTel（可选）
+```
+
+---
+
+## ⏱️ 时间估算
+
+| Phase    | 任务           | 预计时间   |
+| -------- | -------------- | ---------- |
+| Phase 1  | 运维基础       | **1-2 天** |
+| Phase 2  | 测试 + CI 优化 | **3-5 天** |
+| Phase 3  | 架构演进       | **1-2 周** |
+| **合计** |                | **2-3 周** |
+
+---
+
+## 🎯 Phase 1 验收标准
+
+- ☐ 所有 workflow 不用 docker
+- ☐ `npm run lint` 0 warning
+- ☐ 删掉 `send-email.ts`
+- ☐ `src/lib/retry.ts` 存在，`r2-client.ts` 调用全部走 `withRetry`
+- ☐ Phase 1 全套验证：typecheck / lint / test / build 全绿
+- ☐ 模拟一次 R2 5xx → retry 触发 → 第二次成功（用 mock 测试）
+
+---
+
+## 📝 配套改动记录
+
+- 2026-07-01: 创建本文档
+- 2026-07-01: Phase 0（已完成）— EMAIL_FROM 自定义域名支持（commit `38c5262`）
+- 2026-07-01: Phase 0（已完成）— 修复 CI ESM + schema 兼容（commit `cce5ae0`）
