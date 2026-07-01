@@ -278,7 +278,7 @@ async function sendNotification(): Promise<void> {
 
   if (!resp.ok) {
     const errText = await resp.text();
-    logger.error(`❌ 邮件发送失败:${(resp.status, errText)}`);
+    logger.error(`❌ 邮件发送失败: ${resp.status} ${errText}`);
     process.exit(1);
   }
 
