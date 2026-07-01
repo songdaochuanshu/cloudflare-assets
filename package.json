@@ -78,5 +78,8 @@
   },
   "release": {
     "tagFormat": "{version}"
+  },
+  "overrides": {
+    "conventional-commits-parser": "7.0.0"
   }
 }
