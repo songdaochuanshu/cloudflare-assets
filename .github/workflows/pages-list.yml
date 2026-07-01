@@ -1,0 +1,31 @@
+name: Pages List Projects
+
+on:
+  workflow_dispatch:
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node CI
+        uses: ./.github/actions/node-ci
+        with:
+          run-typecheck: 'false'
+
+      - name: List Pages projects
+        run: node dist/scripts/pages/list-projects.js
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+
+      - name: Send email notification
+        if: always()
+        run: node dist/scripts/email-notifier.js
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          WORKFLOW_NAME: pages-list
+          WORKFLOW_STATUS: ${{ job.status }}

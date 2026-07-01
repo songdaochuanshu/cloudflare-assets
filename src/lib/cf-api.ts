@@ -236,3 +236,214 @@ export async function findZoneId(domain: string): Promise<string | null> {
   }
   return null;
 }
+
+// ═══════════════════════════════════════════════
+// Pages 项目管理
+// ═══════════════════════════════════════════════
+
+export interface PagesProject {
+  id: string;
+  name: string;
+  subdomain: string;
+  domains: string[];
+  source: {
+    type: string;
+    config?: {
+      owner: string;
+      repo_name: string;
+      production_branch: string;
+    };
+  };
+  build_config: {
+    build_command: string;
+    destination_dir: string;
+    root_file: string;
+    web_analytics_tag: string;
+    web_analytics_token: string;
+  };
+  deployment_configs: {
+    production: { env_vars?: Record<string, { value: string; type: string }> };
+    preview: { env_vars?: Record<string, { value: string; type: string }> };
+  };
+  latest_deployment?: { id: string; status: string; created_on: string };
+  created_on: string;
+  modified_on: string;
+}
+
+export interface PagesDeployment {
+  id: string;
+  short_id: string;
+  project_id: string;
+  project_name: string;
+  commit_hash: string;
+  branch: string;
+  message: string;
+  committed_on: string;
+  created_on: string;
+  modified_on: string;
+  deployed_on: string;
+  status: 'idle' | 'building' | 'deploying' | 'ready' | 'canceled' | 'error' | 'failure';
+  environment: 'production' | 'preview';
+  urls: string[];
+  build_config: {
+    build_command: string;
+    destination_dir: string;
+  };
+  metadata: {
+    collection_key: string;
+    retry_count: number;
+  };
+}
+
+export interface PagesVariable {
+  name: string;
+  value: string;
+  type: 'secret_text' | 'plain_text' | 'number';
+}
+
+export interface PagesBuildConfig {
+  build_command: string;
+  destination_dir: string;
+  root_file: string;
+  web_analytics_tag: string;
+  web_analytics_token: string;
+}
+
+/** 列出账户下所有 Pages 项目 */
+export async function listPagesProjects(): Promise<PagesProject[]> {
+  const result = await cfFetch<{ projects: PagesProject[]; per_page: number; total: number }>(
+    'GET',
+    `/accounts/${CF_ACCOUNT_ID}/pages/projects?per_page=50`,
+  );
+  return result.projects;
+}
+
+/** 获取某个 Pages 项目的详细信息 */
+export async function getPagesProject(projectName: string): Promise<PagesProject> {
+  return cfFetch<PagesProject>(
+    'GET',
+    `/accounts/${CF_ACCOUNT_ID}/pages/projects/${projectName}`,
+  );
+}
+
+/** 删除某个 Pages 项目 */
+export async function deletePagesProject(projectName: string): Promise<void> {
+  await cfFetch('DELETE', `/accounts/${CF_ACCOUNT_ID}/pages/projects/${projectName}`);
+}
+
+/** 触发一次部署（可选指定分支，默认取项目的 production_branch） */
+export async function triggerDeployment(
+  projectName: string,
+  branch?: string,
+): Promise<PagesDeployment> {
+  const body: Record<string, unknown> = {};
+  if (branch) body.branch = branch;
+  return cfFetch<PagesDeployment>(
+    'POST',
+    `/accounts/${CF_ACCOUNT_ID}/pages/projects/${projectName}/deployments`,
+    body,
+  );
+}
+
+/** 列出项目的部署历史（默认最新 20 条） */
+export async function listDeployments(
+  projectName: string,
+  page = 1,
+): Promise<PagesDeployment[]> {
+  const result = await cfFetch<{ deployments: PagesDeployment[]; per_page: number }>(
+    'GET',
+    `/accounts/${CF_ACCOUNT_ID}/pages/projects/${projectName}/deployments?page=${page}&per_page=20`,
+  );
+  return result.deployments;
+}
+
+/** 获取某次部署的详细信息 */
+export async function getDeployment(
+  projectName: string,
+  deploymentId: string,
+): Promise<PagesDeployment> {
+  return cfFetch<PagesDeployment>(
+    'GET',
+    `/accounts/${CF_ACCOUNT_ID}/pages/projects/${projectName}/deployments/${deploymentId}`,
+  );
+}
+
+/** 获取生产环境的变量（不含 secret 具体值，secret 返回 type=secret_text） */
+export async function getProjectVariables(
+  projectName: string,
+  environment: 'production' | 'preview' = 'production',
+): Promise<PagesVariable[]> {
+  return cfFetch<PagesVariable[]>(
+    'GET',
+    `/accounts/${CF_ACCOUNT_ID}/pages/projects/${projectName}/environments/${environment}/variables`,
+  );
+}
+
+/** 批量设置变量（幂等：已存在则覆盖，不存在则创建） */
+export async function setProjectVariables(
+  projectName: string,
+  environment: 'production' | 'preview' | 'production_branch' = 'production',
+  variables: Array<{ name: string; value: string; type?: string }>,
+): Promise<PagesVariable[]> {
+  return cfFetch<PagesVariable[]>(
+    'PUT',
+    `/accounts/${CF_ACCOUNT_ID}/pages/projects/${projectName}/environments/${environment}/variables`,
+    { variables },
+  );
+}
+
+/** 获取项目的构建配置 */
+export async function getPagesBuildConfig(projectName: string): Promise<PagesBuildConfig> {
+  return cfFetch<PagesBuildConfig>(
+    'GET',
+    `/accounts/${CF_ACCOUNT_ID}/pages/projects/${projectName}/build-config`,
+  );
+}
+
+/** 获取项目的重定向/头部规则 */
+export async function getPagesTransformRules(projectName: string): Promise<unknown> {
+  return cfFetch<unknown>(
+    'GET',
+    `/accounts/${CF_ACCOUNT_ID}/pages/projects/${projectName}/transform-rules`,
+  );
+}
+
+/** 获取项目统计（构建次数、部署次数） */
+export async function getPagesProjectStats(projectName: string): Promise<{
+  build_count: number;
+  deployment_count: number;
+  pages_served: number;
+}> {
+  return cfFetch<{ build_count: number; deployment_count: number; pages_served: number }>(
+    'GET',
+    `/accounts/${CF_ACCOUNT_ID}/pages/projects/${projectName}/statistics`,
+  );
+}
+
+/** 取消一个正在构建中的部署 */
+export async function cancelDeployment(projectName: string, deploymentId: string): Promise<void> {
+  await cfFetch(
+    'POST',
+    `/accounts/${CF_ACCOUNT_ID}/pages/projects/${projectName}/deployments/${deploymentId}/cancel`,
+  );
+}
+
+/** 获取 Cloudflare Pages 的账户信息（配额） */
+export async function getPagesAccountInfo(): Promise<{
+  allowed_member_count: number;
+  build_timeout: number;
+  is_runnable: boolean;
+  pages_domains_limit: number;
+  quota_account: { included: number; used: number };
+}> {
+  return cfFetch(
+    'GET',
+    `/accounts/${CF_ACCOUNT_ID}/pages/projects`,
+  ) as Promise<{
+    allowed_member_count: number;
+    build_timeout: number;
+    is_runnable: boolean;
+    pages_domains_limit: number;
+    quota_account: { included: number; used: number };
+  }>;
+}
