@@ -25,3 +25,4 @@ jobs:
     uses: ./.github/workflows/_node-ci-bootstrap.yml
     with:
       node-version: '20'
+      run-build: true
