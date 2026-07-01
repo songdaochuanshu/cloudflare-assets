@@ -81,7 +81,7 @@ Lolicon API (r18=0) → 下载 → 暂存内存 → 批量上传到 R2 normal/
 homepage-bg/
 ├── r18/              # R18 插画
 ├── normal/           # 普通插画
-└── images-info.json  # 元数据（{ r18: [], normal: [] }）
+└── images-info.json  # 元数据（存 R2，不进 git）
 ```
 
 ### songdaochuanshu-static（博客）

@@ -49,7 +49,7 @@ cloudflare-assets/
 homepage-bg/
 ├── r18/               # R18 插画（Lolicon API）
 ├── normal/            # 普通插画
-└── images-info.json   # 元数据索引
+└── images-info.json   # 元数据索引（存 R2，不进 git）
 ```
 
 CDN 域名：`img-homepage.openserve.cloud`
@@ -133,7 +133,7 @@ songdaochuanshu-static/
 | Workflow | 触发 | 说明 |
 |---|---|---|
 | `crawl.yml` | 每天 09/13/17/21/01 时（北京时间） | 爬取新图片 |
-| `update-images-info.yml` | push main + 每天 08:00（北京时间） | 更新元数据 |
+| `update-images-info.yml` | 每天 08:00（北京时间）+ 手动 | 更新元数据到 R2 |
 | `crawl-cnblogs.yml` | 定时 + 手动 | 博客园爬取（多模式） |
 | `generate-article.yml` | 定时 + 手动 | AI 文章生成 |
 | `cleanup-blog.yml` | 手动 | 清空博客 |

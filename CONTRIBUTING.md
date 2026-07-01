@@ -56,7 +56,6 @@ cloudflare-assets/
 ├── package.json                        # 依赖 + npm scripts
 ├── CONTRIBUTING.md                     # 开发上下文 (本文件)
 ├── README.md                           # 项目说明
-└── images-info.json                    # 桶元数据索引（手动维护）
 ```
 
 > **2026-06-30 起**：项目从纯 .mjs 迁移到 TypeScript。源码在 `src/`，运行时跑 `dist/` 产物（由 `npm run build` 编译）。
