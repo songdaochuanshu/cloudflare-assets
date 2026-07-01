@@ -1,0 +1,27 @@
+name: Node CI
+description: Setup Node.js, install dependencies, typecheck and build
+inputs:
+  node-version:
+    required: false
+    default: '20'
+  run-typecheck:
+    required: false
+    default: 'true'
+  run-build:
+    required: false
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: npm
+    - run: npm ci
+      shell: bash
+    - if: ${{ inputs.run-typecheck == 'true' }}
+      run: npm run typecheck
+      shell: bash
+    - if: ${{ inputs.run-build == 'true' }}
+      run: npm run build
+      shell: bash

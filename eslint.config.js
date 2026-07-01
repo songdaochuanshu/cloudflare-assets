@@ -55,6 +55,10 @@ export default [
       'no-var': 'error',
       eqeqeq: ['error', 'always'],
       curly: ['error', 'all'],
+      'no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
 
       // Disable some strict rules that are too noisy for existing code
       '@typescript-eslint/no-confusing-void-expression': 'off',
@@ -82,6 +86,12 @@ export default [
           message: '`with` statements are forbidden.',
         },
       ],
+    },
+  },
+  {
+    files: ['src/scripts/**/*.ts'],
+    rules: {
+      'no-console': 'off',
     },
   },
   prettier,

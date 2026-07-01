@@ -1,7 +1,9 @@
 // src/lib/cf-api.ts
 // Cloudflare REST API 客户端 — 管理 R2 / Pages / Workers 自定义域名
 
+import { ApiError } from './errors.js';
 import { logger } from './logger.js';
+import { fetchWithRetry } from './retry.js';
 
 const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID ?? '';
 const CF_API_TOKEN = process.env.CF_API_TOKEN ?? '';
@@ -34,12 +36,35 @@ async function cfFetch<T = unknown>(method: string, path: string, body?: unknown
   };
   if (body !== undefined) opts.body = JSON.stringify(body);
 
-  const resp = await fetch(url, opts);
-  const json = (await resp.json()) as CfResponse<T>;
+  const resp = await fetchWithRetry(url, opts, { timeoutMs: 15000 });
+  const text = await resp.text().catch(() => '');
+
+  let json: CfResponse<T> | null = null;
+  if (text) {
+    try {
+      json = JSON.parse(text) as CfResponse<T>;
+    } catch {
+      json = null;
+    }
+  }
+
+  if (!resp.ok) {
+    throw new ApiError(`Cloudflare API HTTP ${resp.status}: ${text.slice(0, 300)}`, resp.status, {
+      method,
+      path,
+    });
+  }
+
+  if (!json) {
+    throw new ApiError(`Cloudflare API 响应不是 JSON: ${text.slice(0, 300)}`, resp.status, {
+      method,
+      path,
+    });
+  }
 
   if (!json.success) {
     const msgs = json.errors.map((e) => `[${e.code}] ${e.message}`).join('; ');
-    throw new Error(`Cloudflare API 错误: ${msgs}`);
+    throw new ApiError(`Cloudflare API 错误: ${msgs}`, resp.status, { method, path, errors: json.errors });
   }
   return json.result;
 }

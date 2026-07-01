@@ -3,6 +3,7 @@
 import crypto from 'node:crypto';
 import { env } from './config.js';
 import { R2Error } from './errors.js';
+import { fetchWithRetry } from './retry.js';
 import type { UploadOptions, ListedObject } from './types.js';
 
 // ===== 环境变量 & 常量 =====
@@ -113,14 +114,18 @@ export async function listAllKeys(prefix?: string): Promise<string[]> {
     if (marker) query += '&marker=' + encodeURIComponent(marker);
     const { authorization, amzDate } = signRequest('GET', '/', query, emptyPayloadHash, new Date());
     const url = 'https://' + host + '/?' + query;
-    const resp = await fetch(url, {
-      headers: {
-        Authorization: authorization,
-        'x-amz-content-sha256': emptyPayloadHash,
-        'x-amz-date': amzDate,
-        Host: host,
+    const resp = await fetchWithRetry(
+      url,
+      {
+        headers: {
+          Authorization: authorization,
+          'x-amz-content-sha256': emptyPayloadHash,
+          'x-amz-date': amzDate,
+          Host: host,
+        },
       },
-    });
+      { timeoutMs: 15000 },
+    );
     if (!resp.ok) {
       throw new R2Error(`R2 list failed: HTTP ${resp.status}`, { prefix, status: resp.status });
     }
@@ -147,14 +152,18 @@ export async function listObjects(prefix?: string): Promise<ListedObject[]> {
     if (marker) query += '&marker=' + encodeURIComponent(marker);
     const { authorization, amzDate } = signRequest('GET', '/', query, emptyPayloadHash, new Date());
     const url = 'https://' + host + '/?' + query;
-    const resp = await fetch(url, {
-      headers: {
-        Authorization: authorization,
-        'x-amz-content-sha256': emptyPayloadHash,
-        'x-amz-date': amzDate,
-        Host: host,
+    const resp = await fetchWithRetry(
+      url,
+      {
+        headers: {
+          Authorization: authorization,
+          'x-amz-content-sha256': emptyPayloadHash,
+          'x-amz-date': amzDate,
+          Host: host,
+        },
       },
-    });
+      { timeoutMs: 15000 },
+    );
     if (!resp.ok) {
       throw new R2Error(`R2 list objects failed: HTTP ${resp.status}`, {
         prefix,
@@ -206,22 +215,26 @@ export async function uploadToR2(
     extraHeaders,
   );
   const url = 'https://' + host + '/' + key;
-  const resp = await fetch(url, {
-    method: 'PUT',
-    headers: {
-      Authorization: authorization,
-      'x-amz-content-sha256': bodyHash,
-      'x-amz-date': amzDate,
-      Host: host,
-      ...(contentType ? { 'Content-Type': contentType } : {}),
-      ...(options?.metadata
-        ? Object.fromEntries(
-            Object.entries(options.metadata).map(([k, v]) => [`x-amz-meta-${k}`, v]),
-          )
-        : {}),
+  const resp = await fetchWithRetry(
+    url,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: authorization,
+        'x-amz-content-sha256': bodyHash,
+        'x-amz-date': amzDate,
+        Host: host,
+        ...(contentType ? { 'Content-Type': contentType } : {}),
+        ...(options?.metadata
+          ? Object.fromEntries(
+              Object.entries(options.metadata).map(([k, v]) => [`x-amz-meta-${k}`, v]),
+            )
+          : {}),
+      },
+      body: body as any,
     },
-    body: body as any,
-  });
+    { timeoutMs: 30000 },
+  );
   if (!resp.ok) {
     const respBody = await resp.text().catch(() => '(unable to read body)');
     throw new R2Error(`R2 PUT failed: HTTP ${resp.status} — ${respBody.slice(0, 300)}`, {
@@ -248,15 +261,19 @@ export async function deleteObject(key: string): Promise<boolean> {
     new Date(),
   );
   const url = 'https://' + host + '/' + encodedKey;
-  const resp = await fetch(url, {
-    method: 'DELETE',
-    headers: {
-      Authorization: authorization,
-      'x-amz-content-sha256': emptyPayloadHash,
-      'x-amz-date': amzDate,
-      Host: host,
+  const resp = await fetchWithRetry(
+    url,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: authorization,
+        'x-amz-content-sha256': emptyPayloadHash,
+        'x-amz-date': amzDate,
+        Host: host,
+      },
     },
-  });
+    { timeoutMs: 15000 },
+  );
   if (!resp.ok && resp.status !== 204) {
     throw new R2Error(`R2 DELETE failed: HTTP ${resp.status}`, { key, status: resp.status });
   }
